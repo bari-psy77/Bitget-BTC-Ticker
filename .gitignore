@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.agents/
+AGENTS.md
+plans/
+build/
+dist/
+*.spec
+.idea/
+.vscode/
