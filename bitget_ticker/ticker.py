@@ -27,8 +27,11 @@ class BitgetBTCTicker:
 
         self.overlay = OverlayWindow(
             opacity=float(self.config["opacity"]),
+            position=str(self.config["position"]),
+            custom_position=self._copy_custom_position(self.config.get("custom_position")),
             on_open_settings=self.open_settings,
             on_quit=self.quit_app,
+            on_position_change=self.on_position_change,
         )
         self.root = self.overlay.root
 
@@ -60,7 +63,7 @@ class BitgetBTCTicker:
     def price_update_loop(self) -> None:
         time.sleep(5)
         while self.running:
-            wait_seconds = int(self.config["interval"]) * 60
+            wait_seconds = int(self.config["interval_seconds"])
             should_fetch = True
 
             for _ in range(wait_seconds):
@@ -77,11 +80,17 @@ class BitgetBTCTicker:
 
     def apply_settings(self, config: dict[str, object]) -> None:
         self.config = {
-            "interval": int(config["interval"]),
+            "interval_seconds": int(config["interval_seconds"]),
             "alarms": list(config["alarms"]),
             "opacity": float(config["opacity"]),
+            "position": str(config["position"]),
+            "custom_position": self._copy_custom_position(config.get("custom_position")),
         }
         self.overlay.set_opacity(float(self.config["opacity"]))
+        self.overlay.set_position(
+            str(self.config["position"]),
+            self._copy_custom_position(self.config.get("custom_position")),
+        )
         self.alarm_engine.reset()
         self._config_changed.set()
         self.fetch_price_async()
@@ -104,6 +113,14 @@ class BitgetBTCTicker:
         )
         messagebox.showinfo("가격 알람", message, parent=self.root)
 
+    def on_position_change(self, position: str, custom_position: dict[str, int]) -> None:
+        self.config["position"] = position
+        self.config["custom_position"] = dict(custom_position)
+        try:
+            self.config_manager.save(self.config)
+        except OSError:
+            return
+
     def _fetch_and_dispatch(self) -> None:
         price = self.price_fetcher.get_btc_price()
         if price is None:
@@ -125,6 +142,20 @@ class BitgetBTCTicker:
     def _shutdown_ui(self) -> None:
         self.root.quit()
         self.root.destroy()
+
+    @staticmethod
+    def _copy_custom_position(
+        value: object,
+    ) -> dict[str, int] | None:
+        if not isinstance(value, dict):
+            return None
+        try:
+            return {
+                "x": int(value["x"]),
+                "y": int(value["y"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
 
 
 def main() -> None:

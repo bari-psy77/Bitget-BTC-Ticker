@@ -9,9 +9,21 @@ class ConfigManager:
     """Load and persist ticker configuration."""
 
     DEFAULT_CONFIG: dict[str, Any] = {
-        "interval": 5,
+        "interval_seconds": 300,
         "alarms": [],
         "opacity": 0.85,
+        "position": "bottom-right",
+        "custom_position": None,
+    }
+    MIN_INTERVAL_SECONDS = 30
+    MAX_INTERVAL_SECONDS = 1800
+    POSITION_OPTIONS = {
+        "top-left",
+        "top-right",
+        "bottom-left",
+        "bottom-right",
+        "center",
+        "custom",
     }
 
     def __init__(self, config_path: Path | None = None) -> None:
@@ -47,15 +59,29 @@ class ConfigManager:
         if not isinstance(data, dict):
             return config
 
-        interval = data.get("interval", config["interval"])
+        interval = data.get("interval_seconds")
+        if interval is None:
+            legacy_interval = data.get("interval")
+            if legacy_interval is not None:
+                interval = legacy_interval
+                try:
+                    interval = int(interval) * 60
+                except (TypeError, ValueError):
+                    interval = config["interval_seconds"]
+
         opacity = data.get("opacity", config["opacity"])
         alarms = data.get("alarms", config["alarms"])
+        position = data.get("position", config["position"])
+        custom_position = data.get("custom_position")
 
         try:
             interval_value = int(interval)
         except (TypeError, ValueError):
-            interval_value = config["interval"]
-        config["interval"] = interval_value if interval_value > 0 else config["interval"]
+            interval_value = config["interval_seconds"]
+        config["interval_seconds"] = min(
+            self.MAX_INTERVAL_SECONDS,
+            max(self.MIN_INTERVAL_SECONDS, interval_value),
+        )
 
         try:
             opacity_value = float(opacity)
@@ -72,4 +98,27 @@ class ConfigManager:
                     continue
         config["alarms"] = sorted(parsed_alarms)
 
+        if position in self.POSITION_OPTIONS:
+            config["position"] = position
+
+        parsed_custom_position = self._normalize_custom_position(custom_position)
+        if config["position"] == "custom" and parsed_custom_position is None:
+            config["position"] = self.DEFAULT_CONFIG["position"]
+        config["custom_position"] = parsed_custom_position
+
         return config
+
+    def _normalize_custom_position(
+        self,
+        custom_position: Any,
+    ) -> dict[str, int] | None:
+        if not isinstance(custom_position, dict):
+            return None
+
+        try:
+            x = int(float(custom_position["x"]))
+            y = int(float(custom_position["y"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        return {"x": x, "y": y}

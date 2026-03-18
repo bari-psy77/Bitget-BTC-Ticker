@@ -8,7 +8,8 @@ The widget runs completely in the background without title bars, sits on top of 
 
 - **Live BTC/USDT Price**, updated automatically based on your polling interval.
 - **Floating Overlay** widget that always stays on top of other applications.
-- **Customizable Appearance** including transparency (opacity) settings.
+- **Customizable Appearance** including transparency (opacity) and overlay position settings.
+- **Flexible Polling Interval** adjustable from 30 seconds up to 30 minutes.
 - **Visual Direction Indicators**: Colors and arrows adjust dynamically (up=green ▲, down=red ▼).
 - **Price Alarms**: Set up to 4 target prices. If the spot price surpasses or drops below a target, you'll hear a system beep sound.
 - **System Tray Integration**: Easily access settings or exit the app through a discrete tray icon.
@@ -37,12 +38,12 @@ pythonw main.py
 
 ## How to Use
 
-1. **Reposition Widget**: By default, the widget appears near the bottom-center of your screen. Simply click and drag anywhere on the widget to move it around.
+1. **Reposition Widget**: By default, the widget appears near the bottom-right of your screen. Simply click and drag anywhere on the widget to move it around. Dragging also saves the custom position.
 2. **Settings Menu**: Right-click the widget itself, or right-click the Bitget orange logo in your System Tray, and click **Settings**.
 3. **Configure Settings**:
    - **Alarms Tab**: Input your target price triggers.
-   - **Interval Tab**: Adjust how often it pulls the latest price from Bitget (e.g., 5, 10, or 15 mins).
-   - **Opacity Tab**: Use the slider to make the ticker semi-transparent so it does not obstruct your workflow.
+   - **Interval Tab**: Adjust how often it pulls the latest price from Bitget between 30 seconds and 30 minutes.
+   - **Display Tab**: Choose the overlay position and use the opacity slider to make the ticker semi-transparent so it does not obstruct your workflow.
 
 ## Compiled Windows Executable (.exe)
 

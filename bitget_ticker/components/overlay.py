@@ -11,6 +11,7 @@ class OverlayWindow:
 
     WIDTH = 260
     HEIGHT = 38
+    SCREEN_MARGIN = 24
     BACKGROUND = "#0d1117"
     UP_COLOR = "#00d4aa"
     DOWN_COLOR = "#ff6b6b"
@@ -19,8 +20,11 @@ class OverlayWindow:
     def __init__(
         self,
         opacity: float,
+        position: str,
+        custom_position: dict[str, int] | None,
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
+        on_position_change: Callable[[str, dict[str, int]], None] | None = None,
     ) -> None:
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -30,11 +34,14 @@ class OverlayWindow:
 
         self._drag_x = 0
         self._drag_y = 0
+        self._position = position
+        self._custom_position = custom_position
+        self._on_position_change = on_position_change
         self._alarm_engine: AlarmEngine | None = None
         self._alarms_provider: Callable[[], list[float]] | None = None
         self._build_layout()
         self._create_context_menu(on_open_settings, on_quit)
-        self._set_initial_geometry()
+        self.set_position(position, custom_position)
         self._bind_interactions()
 
     def attach_alarm_engine(
@@ -47,6 +54,25 @@ class OverlayWindow:
 
     def set_opacity(self, opacity: float) -> None:
         self.root.attributes("-alpha", opacity)
+
+    def set_position(
+        self,
+        position: str,
+        custom_position: dict[str, int] | None = None,
+    ) -> None:
+        self._position = position
+        if custom_position is not None:
+            self._custom_position = dict(custom_position)
+
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        x, y = self.resolve_position(
+            position=position,
+            screen_w=screen_w,
+            screen_h=screen_h,
+            custom_position=self._custom_position,
+        )
+        self.root.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x}+{y}")
 
     def update_display(self, price: float, prev_price: float | None) -> None:
         arrow = "─"
@@ -112,12 +138,34 @@ class OverlayWindow:
         self.context_menu.add_separator()
         self.context_menu.add_command(label="종료", command=on_quit)
 
-    def _set_initial_geometry(self) -> None:
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-        x = (screen_w - self.WIDTH) // 2
-        y = screen_h - self.HEIGHT - 60
-        self.root.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x}+{y}")
+    @classmethod
+    def resolve_position(
+        cls,
+        position: str,
+        screen_w: int,
+        screen_h: int,
+        custom_position: dict[str, int] | None = None,
+    ) -> tuple[int, int]:
+        max_x = max(0, screen_w - cls.WIDTH)
+        max_y = max(0, screen_h - cls.HEIGHT)
+
+        anchors = {
+            "top-left": (cls.SCREEN_MARGIN, cls.SCREEN_MARGIN),
+            "top-right": (max(0, screen_w - cls.WIDTH - cls.SCREEN_MARGIN), cls.SCREEN_MARGIN),
+            "bottom-left": (cls.SCREEN_MARGIN, max(0, screen_h - cls.HEIGHT - cls.SCREEN_MARGIN)),
+            "bottom-right": (
+                max(0, screen_w - cls.WIDTH - cls.SCREEN_MARGIN),
+                max(0, screen_h - cls.HEIGHT - cls.SCREEN_MARGIN),
+            ),
+            "center": (max(0, (screen_w - cls.WIDTH) // 2), max(0, (screen_h - cls.HEIGHT) // 2)),
+        }
+
+        if position == "custom" and custom_position is not None:
+            x = min(max(0, int(custom_position["x"])), max_x)
+            y = min(max(0, int(custom_position["y"])), max_y)
+            return x, y
+
+        return anchors.get(position, anchors["bottom-right"])
 
     def _bind_interactions(self) -> None:
         widgets = [
@@ -130,6 +178,7 @@ class OverlayWindow:
         for widget in widgets:
             widget.bind("<Button-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._do_drag)
+            widget.bind("<ButtonRelease-1>", self._finish_drag)
             widget.bind("<Button-3>", self._show_context_menu)
 
     def _start_drag(self, event: tk.Event) -> None:
@@ -140,6 +189,16 @@ class OverlayWindow:
         x = self.root.winfo_x() + event.x - self._drag_x
         y = self.root.winfo_y() + event.y - self._drag_y
         self.root.geometry(f"+{x}+{y}")
+
+    def _finish_drag(self, _event: tk.Event) -> None:
+        position = {
+            "x": self.root.winfo_x(),
+            "y": self.root.winfo_y(),
+        }
+        self._position = "custom"
+        self._custom_position = position
+        if self._on_position_change is not None:
+            self._on_position_change("custom", position)
 
     def _show_context_menu(self, event: tk.Event) -> None:
         try:
