@@ -8,7 +8,6 @@ from bitget_ticker.components.overlay import OverlayWindow
 class OverlayWindowPositionTests(unittest.TestCase):
     def test_resolve_position_defaults_to_bottom_right(self) -> None:
         x, y = OverlayWindow.resolve_position(
-            position="bottom-right",
             screen_w=1920,
             screen_h=1080,
         )
@@ -23,13 +22,16 @@ class OverlayWindowPositionTests(unittest.TestCase):
 
     def test_resolve_position_uses_custom_coordinates_with_screen_clamp(self) -> None:
         x, y = OverlayWindow.resolve_position(
-            position="custom",
             screen_w=1280,
             screen_h=720,
             custom_position={"x": 2000, "y": -15},
         )
 
         self.assertEqual((x, y), (1280 - OverlayWindow.WIDTH, 0))
+
+    def test_context_menu_labels_are_english(self) -> None:
+        self.assertEqual(OverlayWindow.SETTINGS_MENU_LABEL, "Settings")
+        self.assertEqual(OverlayWindow.QUIT_MENU_LABEL, "Quit")
 
 
 if __name__ == "__main__":

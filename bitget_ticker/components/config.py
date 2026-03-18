@@ -11,20 +11,13 @@ class ConfigManager:
     DEFAULT_CONFIG: dict[str, Any] = {
         "interval_seconds": 300,
         "alarms": [],
+        "alert_mode": "popup",
         "opacity": 0.85,
-        "position": "bottom-right",
         "custom_position": None,
     }
     MIN_INTERVAL_SECONDS = 30
     MAX_INTERVAL_SECONDS = 1800
-    POSITION_OPTIONS = {
-        "top-left",
-        "top-right",
-        "bottom-left",
-        "bottom-right",
-        "center",
-        "custom",
-    }
+    ALERT_MODE_OPTIONS = {"popup", "notification"}
 
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or (Path.home() / ".bitget_ticker_config.json")
@@ -71,7 +64,7 @@ class ConfigManager:
 
         opacity = data.get("opacity", config["opacity"])
         alarms = data.get("alarms", config["alarms"])
-        position = data.get("position", config["position"])
+        alert_mode = data.get("alert_mode", config["alert_mode"])
         custom_position = data.get("custom_position")
 
         try:
@@ -89,24 +82,38 @@ class ConfigManager:
             opacity_value = config["opacity"]
         config["opacity"] = min(1.0, max(0.2, opacity_value))
 
-        parsed_alarms: list[float] = []
+        if alert_mode in self.ALERT_MODE_OPTIONS:
+            config["alert_mode"] = alert_mode
+
+        parsed_alarms: list[dict[str, Any]] = []
         if isinstance(alarms, list):
             for alarm in alarms:
-                try:
-                    parsed_alarms.append(float(alarm))
-                except (TypeError, ValueError):
-                    continue
-        config["alarms"] = sorted(parsed_alarms)
+                parsed_alarm = self._normalize_alarm_entry(alarm)
+                if parsed_alarm is not None:
+                    parsed_alarms.append(parsed_alarm)
+        config["alarms"] = parsed_alarms
 
-        if position in self.POSITION_OPTIONS:
-            config["position"] = position
-
-        parsed_custom_position = self._normalize_custom_position(custom_position)
-        if config["position"] == "custom" and parsed_custom_position is None:
-            config["position"] = self.DEFAULT_CONFIG["position"]
-        config["custom_position"] = parsed_custom_position
+        config["custom_position"] = self._normalize_custom_position(custom_position)
 
         return config
+
+    def _normalize_alarm_entry(self, alarm: Any) -> dict[str, Any] | None:
+        raw_price = alarm
+        enabled = True
+
+        if isinstance(alarm, dict):
+            raw_price = alarm.get("price")
+            enabled = bool(alarm.get("enabled", True))
+
+        try:
+            price = float(raw_price)
+        except (TypeError, ValueError):
+            return None
+
+        return {
+            "price": price,
+            "enabled": enabled,
+        }
 
     def _normalize_custom_position(
         self,

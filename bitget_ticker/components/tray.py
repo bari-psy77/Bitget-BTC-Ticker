@@ -16,6 +16,9 @@ except ImportError:  # pragma: no cover - runtime dependency fallback
 class TrayIcon:
     """System tray integration for settings and quit actions."""
 
+    SETTINGS_MENU_LABEL = "Settings"
+    QUIT_MENU_LABEL = "Quit"
+
     def __init__(
         self,
         root,
@@ -51,11 +54,11 @@ class TrayIcon:
 
         menu = pystray.Menu(
             pystray.MenuItem(
-                "설정",
+                self.SETTINGS_MENU_LABEL,
                 lambda icon, item: self.root.after(0, self.on_open_settings),
             ),
             pystray.MenuItem(
-                "종료",
+                self.QUIT_MENU_LABEL,
                 lambda icon, item: self.root.after(0, self.on_quit),
             ),
         )

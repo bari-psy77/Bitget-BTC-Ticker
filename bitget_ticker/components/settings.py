@@ -11,14 +11,15 @@ from bitget_ticker.components.config import ConfigManager
 class SettingsDialog:
     """Tabbed settings dialog for alarms, interval, and opacity."""
 
-    POSITION_LABELS = {
-        "top-left": "왼쪽 상단",
-        "top-right": "오른쪽 상단",
-        "bottom-left": "왼쪽 하단",
-        "bottom-right": "오른쪽 하단 (기본)",
-        "center": "가운데",
-        "custom": "사용자 지정 (드래그 위치)",
-    }
+    WINDOW_TITLE = "Settings - Bitget BTC Ticker"
+    ALERTS_TAB_TITLE = "Price Alerts"
+    INTERVAL_TAB_TITLE = "Refresh Interval"
+    DISPLAY_TAB_TITLE = "Display"
+    SAVE_BUTTON_LABEL = "Save"
+    CANCEL_BUTTON_LABEL = "Cancel"
+    DRAG_GUIDE_TEXT = "Drag the overlay with the mouse to save its position."
+    POPUP_MODE_LABEL = "Popup"
+    NOTIFICATION_MODE_LABEL = "Notification"
 
     def __init__(
         self,
@@ -33,12 +34,12 @@ class SettingsDialog:
         self.on_save = on_save
         self.window: tk.Toplevel | None = None
         self.alarm_vars: list[tk.StringVar] = []
+        self.alarm_enabled_vars: list[tk.BooleanVar] = []
+        self.alert_mode_var: tk.StringVar | None = None
         self.interval_var: tk.IntVar | None = None
         self.interval_label_var: tk.StringVar | None = None
         self.opacity_var: tk.IntVar | None = None
         self.opacity_label_var: tk.StringVar | None = None
-        self.position_var: tk.StringVar | None = None
-        self._current_custom_position: dict[str, int] | None = None
         self._initial_opacity = 85
 
     def show(self) -> None:
@@ -49,14 +50,10 @@ class SettingsDialog:
 
         config = self.config_getter()
         self._initial_opacity = int(float(config["opacity"]) * 100)
-        custom_position = config.get("custom_position")
-        self._current_custom_position = (
-            dict(custom_position) if isinstance(custom_position, dict) else None
-        )
 
         self.window = tk.Toplevel(self.root)
-        self.window.title("설정 - Bitget BTC Ticker")
-        self.window.geometry("420x540")
+        self.window.title(self.WINDOW_TITLE)
+        self.window.geometry("420x580")
         self.window.resizable(False, False)
         self.window.attributes("-topmost", True)
         self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
@@ -67,9 +64,9 @@ class SettingsDialog:
         alarm_tab = ttk.Frame(notebook)
         interval_tab = ttk.Frame(notebook)
         display_tab = ttk.Frame(notebook)
-        notebook.add(alarm_tab, text="가격 알람")
-        notebook.add(interval_tab, text="갱신 주기")
-        notebook.add(display_tab, text="화면 설정")
+        notebook.add(alarm_tab, text=self.ALERTS_TAB_TITLE)
+        notebook.add(interval_tab, text=self.INTERVAL_TAB_TITLE)
+        notebook.add(display_tab, text=self.DISPLAY_TAB_TITLE)
 
         self._build_alarm_tab(alarm_tab, config)
         self._build_interval_tab(interval_tab, config)
@@ -77,22 +74,38 @@ class SettingsDialog:
 
         actions = tk.Frame(self.window, pady=10)
         actions.pack(fill="x")
-        tk.Button(actions, text="저장", width=12, command=self._save).pack(side="right", padx=12)
-        tk.Button(actions, text="취소", width=12, command=self._handle_close).pack(side="right")
+        tk.Button(actions, text=self.SAVE_BUTTON_LABEL, width=12, command=self._save).pack(
+            side="right",
+            padx=12,
+        )
+        tk.Button(actions, text=self.CANCEL_BUTTON_LABEL, width=12, command=self._handle_close).pack(
+            side="right",
+        )
 
     def _build_alarm_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
-        alarms = [str(alarm) for alarm in config.get("alarms", [])][:4]
+        alarms = list(config.get("alarms", []))[:4]
         while len(alarms) < 4:
-            alarms.append("")
+            alarms.append({"price": "", "enabled": True})
 
         container = tk.Frame(parent, padx=18, pady=18)
         container.pack(fill="both", expand=True)
 
         self.alarm_vars = []
-        for index, value in enumerate(alarms, start=1):
-            var = tk.StringVar(value=value)
+        self.alarm_enabled_vars = []
+        for index, alarm in enumerate(alarms, start=1):
+            price_value = ""
+            enabled_value = True
+            if isinstance(alarm, dict):
+                price_value = self._format_alarm_value(alarm.get("price", ""))
+                enabled_value = bool(alarm.get("enabled", True))
+            else:
+                price_value = self._format_alarm_value(alarm)
+
+            var = tk.StringVar(value=price_value)
+            enabled_var = tk.BooleanVar(value=enabled_value)
             self.alarm_vars.append(var)
-            tk.Label(container, text=f"알람 {index} (USDT)").grid(
+            self.alarm_enabled_vars.append(enabled_var)
+            tk.Label(container, text=f"Alert {index} (USDT)").grid(
                 row=index - 1,
                 column=0,
                 sticky="w",
@@ -105,8 +118,56 @@ class SettingsDialog:
                 padx=(12, 0),
                 pady=8,
             )
+            tk.Checkbutton(
+                container,
+                text="Enabled",
+                variable=enabled_var,
+            ).grid(
+                row=index - 1,
+                column=2,
+                sticky="w",
+                padx=(12, 0),
+                pady=8,
+            )
 
         container.grid_columnconfigure(1, weight=1)
+
+        ttk.Separator(container, orient="horizontal").grid(
+            row=4,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+            pady=(18, 18),
+        )
+
+        self.alert_mode_var = tk.StringVar(value=str(config.get("alert_mode", "popup")))
+        tk.Label(container, text="Alert Action").grid(
+            row=5,
+            column=0,
+            columnspan=3,
+            sticky="w",
+        )
+        tk.Radiobutton(
+            container,
+            text=self.POPUP_MODE_LABEL,
+            variable=self.alert_mode_var,
+            value="popup",
+            anchor="w",
+        ).grid(row=6, column=0, columnspan=3, sticky="w", pady=(10, 4))
+        tk.Radiobutton(
+            container,
+            text=self.NOTIFICATION_MODE_LABEL,
+            variable=self.alert_mode_var,
+            value="notification",
+            anchor="w",
+        ).grid(row=7, column=0, columnspan=3, sticky="w", pady=4)
+        tk.Label(
+            container,
+            text="Notification flashes the price text for about 5 seconds without sound.",
+            fg="#666666",
+            justify="left",
+            wraplength=320,
+        ).grid(row=8, column=0, columnspan=3, sticky="w", pady=(10, 0))
 
     def _build_interval_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
         container = tk.Frame(parent, padx=18, pady=18)
@@ -116,7 +177,7 @@ class SettingsDialog:
         self.interval_var = tk.IntVar(value=interval_seconds)
         self.interval_label_var = tk.StringVar(value=self._format_interval_label(interval_seconds))
 
-        tk.Label(container, text="갱신 주기").pack(anchor="w")
+        tk.Label(container, text="Refresh Interval").pack(anchor="w")
         tk.Scale(
             container,
             from_=30,
@@ -134,7 +195,7 @@ class SettingsDialog:
         )
         tk.Label(
             container,
-            text="30초부터 30분까지 30초 단위로 조절됩니다.",
+            text="Adjust between 30 seconds and 30 minutes in 30-second steps.",
             fg="#666666",
         ).pack(anchor="w", pady=(12, 0))
 
@@ -142,30 +203,18 @@ class SettingsDialog:
         container = tk.Frame(parent, padx=18, pady=18)
         container.pack(fill="both", expand=True)
 
-        self.position_var = tk.StringVar(value=str(config.get("position", "bottom-right")))
-
-        tk.Label(container, text="오버레이 위치").pack(anchor="w")
-        positions_frame = tk.Frame(container)
-        positions_frame.pack(fill="x", pady=(8, 16))
-        for row, (value, label) in enumerate(self.POSITION_LABELS.items()):
-            tk.Radiobutton(
-                positions_frame,
-                text=label,
-                variable=self.position_var,
-                value=value,
-                anchor="w",
-            ).grid(row=row // 2, column=row % 2, sticky="w", padx=(0, 20), pady=6)
+        tk.Label(container, text="Overlay Position").pack(anchor="w")
         tk.Label(
             container,
-            text="마우스로 드래그하면 사용자 지정 위치로 저장됩니다.",
+            text=self.DRAG_GUIDE_TEXT,
             fg="#666666",
-        ).pack(anchor="w", pady=(0, 20))
+        ).pack(anchor="w", pady=(8, 20))
 
         opacity_value = int(float(config.get("opacity", 0.85)) * 100)
         self.opacity_var = tk.IntVar(value=opacity_value)
         self.opacity_label_var = tk.StringVar(value=f"{opacity_value}%")
 
-        tk.Label(container, text="오버레이 투명도").pack(anchor="w", pady=(0, 8))
+        tk.Label(container, text="Overlay Opacity").pack(anchor="w", pady=(0, 8))
         tk.Scale(
             container,
             from_=20,
@@ -192,20 +241,21 @@ class SettingsDialog:
         try:
             alarms = self._parse_alarm_values()
         except ValueError as exc:
-            messagebox.showerror("입력 오류", str(exc), parent=self.window)
+            messagebox.showerror("Input Error", str(exc), parent=self.window)
             return
 
-        if self.interval_var is None or self.opacity_var is None or self.position_var is None:
+        if self.interval_var is None or self.opacity_var is None or self.alert_mode_var is None:
             return
 
+        current_config = self.config_getter()
         config = {
             "interval_seconds": int(self.interval_var.get()),
             "alarms": alarms,
+            "alert_mode": self.alert_mode_var.get(),
             "opacity": round(int(self.opacity_var.get()) / 100, 2),
-            "position": self.position_var.get(),
             "custom_position": (
-                dict(self._current_custom_position)
-                if self._current_custom_position is not None
+                dict(current_config["custom_position"])
+                if isinstance(current_config.get("custom_position"), dict)
                 else None
             ),
         }
@@ -213,23 +263,28 @@ class SettingsDialog:
         try:
             saved_config = self.config_manager.save(config)
         except OSError as exc:
-            messagebox.showerror("저장 실패", str(exc), parent=self.window)
+            messagebox.showerror("Save Failed", str(exc), parent=self.window)
             return
 
         self.on_save(saved_config)
         self._destroy_window()
 
-    def _parse_alarm_values(self) -> list[float]:
-        alarms: list[float] = []
-        for var in self.alarm_vars:
+    def _parse_alarm_values(self) -> list[dict[str, object]]:
+        alarms: list[dict[str, object]] = []
+        for var, enabled_var in zip(self.alarm_vars, self.alarm_enabled_vars, strict=True):
             value = var.get().strip()
             if not value:
                 continue
             try:
-                alarms.append(float(value))
+                alarms.append(
+                    {
+                        "price": float(value),
+                        "enabled": bool(enabled_var.get()),
+                    }
+                )
             except ValueError as exc:
-                raise ValueError("알람 값은 숫자만 입력할 수 있습니다.") from exc
-        return sorted(alarms)
+                raise ValueError("Alert values must be numeric.") from exc
+        return alarms
 
     def _handle_close(self) -> None:
         self.root.attributes("-alpha", self._initial_opacity / 100)
@@ -244,7 +299,15 @@ class SettingsDialog:
     def _format_interval_label(seconds: int) -> str:
         minutes, remain_seconds = divmod(seconds, 60)
         if minutes and remain_seconds:
-            return f"{minutes}분 {remain_seconds}초"
+            return f"{minutes} min {remain_seconds} sec"
         if minutes:
-            return f"{minutes}분"
-        return f"{remain_seconds}초"
+            return f"{minutes} min"
+        return f"{remain_seconds} sec"
+
+    @staticmethod
+    def _format_alarm_value(value: object) -> str:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return ""
+        return f"{numeric:g}"

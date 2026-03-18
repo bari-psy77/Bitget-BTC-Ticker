@@ -27,7 +27,6 @@ class BitgetBTCTicker:
 
         self.overlay = OverlayWindow(
             opacity=float(self.config["opacity"]),
-            position=str(self.config["position"]),
             custom_position=self._copy_custom_position(self.config.get("custom_position")),
             on_open_settings=self.open_settings,
             on_quit=self.quit_app,
@@ -35,7 +34,10 @@ class BitgetBTCTicker:
         )
         self.root = self.overlay.root
 
-        self.alarm_engine = AlarmEngine(on_alarm=self.on_alarm)
+        self.alarm_engine = AlarmEngine(
+            on_alarm=self.on_alarm,
+            beep_enabled_provider=self._should_play_alarm_sound,
+        )
         self.overlay.attach_alarm_engine(self.alarm_engine, self._current_alarms)
 
         self.settings_dialog = SettingsDialog(
@@ -81,16 +83,13 @@ class BitgetBTCTicker:
     def apply_settings(self, config: dict[str, object]) -> None:
         self.config = {
             "interval_seconds": int(config["interval_seconds"]),
-            "alarms": list(config["alarms"]),
+            "alarms": self._copy_alarm_items(config.get("alarms")),
+            "alert_mode": str(config.get("alert_mode", "popup")),
             "opacity": float(config["opacity"]),
-            "position": str(config["position"]),
             "custom_position": self._copy_custom_position(config.get("custom_position")),
         }
         self.overlay.set_opacity(float(self.config["opacity"]))
-        self.overlay.set_position(
-            str(self.config["position"]),
-            self._copy_custom_position(self.config.get("custom_position")),
-        )
+        self.overlay.set_position(self._copy_custom_position(self.config.get("custom_position")))
         self.alarm_engine.reset()
         self._config_changed.set()
         self.fetch_price_async()
@@ -107,14 +106,17 @@ class BitgetBTCTicker:
         self.root.after(0, self._shutdown_ui)
 
     def on_alarm(self, alarm_price: float, current_price: float) -> None:
-        message = (
-            f"알람 가격 ${alarm_price:,.2f} 구간을 통과했습니다.\n"
-            f"현재 BTC 가격: ${current_price:,.2f}"
-        )
-        messagebox.showinfo("가격 알람", message, parent=self.root)
+        if str(self.config.get("alert_mode", "popup")) == "notification":
+            self.overlay.show_notification(alarm_price, current_price)
+            return
 
-    def on_position_change(self, position: str, custom_position: dict[str, int]) -> None:
-        self.config["position"] = position
+        message = (
+            f"Crossed alert level ${alarm_price:,.2f}.\n"
+            f"Current BTC price: ${current_price:,.2f}"
+        )
+        messagebox.showinfo("Price Alert", message, parent=self.root)
+
+    def on_position_change(self, custom_position: dict[str, int]) -> None:
         self.config["custom_position"] = dict(custom_position)
         try:
             self.config_manager.save(self.config)
@@ -133,11 +135,17 @@ class BitgetBTCTicker:
         self.overlay.update_display(price, self.previous_price)
         self.previous_price = price
 
-    def _current_alarms(self) -> list[float]:
-        return list(self.config.get("alarms", []))
+    def _current_alarms(self) -> list[dict[str, object]]:
+        return self._copy_alarm_items(self.config.get("alarms"))
 
     def _current_config(self) -> dict[str, object]:
-        return dict(self.config)
+        return {
+            "interval_seconds": int(self.config["interval_seconds"]),
+            "alarms": self._copy_alarm_items(self.config.get("alarms")),
+            "alert_mode": str(self.config.get("alert_mode", "popup")),
+            "opacity": float(self.config["opacity"]),
+            "custom_position": self._copy_custom_position(self.config.get("custom_position")),
+        }
 
     def _shutdown_ui(self) -> None:
         self.root.quit()
@@ -156,6 +164,32 @@ class BitgetBTCTicker:
             }
         except (KeyError, TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _copy_alarm_items(
+        value: object,
+    ) -> list[dict[str, object]]:
+        if not isinstance(value, list):
+            return []
+
+        alarms: list[dict[str, object]] = []
+        for alarm in value:
+            if not isinstance(alarm, dict):
+                continue
+            try:
+                price = float(alarm["price"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            alarms.append(
+                {
+                    "price": price,
+                    "enabled": bool(alarm.get("enabled", True)),
+                }
+            )
+        return alarms
+
+    def _should_play_alarm_sound(self) -> bool:
+        return str(self.config.get("alert_mode", "popup")) == "popup"
 
 
 def main() -> None:
