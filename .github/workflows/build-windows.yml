@@ -10,10 +10,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -28,7 +28,7 @@ jobs:
         pyinstaller --onefile --windowed --name "Bitget-BTC-Ticker" bitget_ticker/main.py
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Bitget-BTC-Ticker-Windows-Exe
         path: dist/Bitget-BTC-Ticker.exe
