@@ -1,0 +1,11 @@
+너는 이 저장소의 수석 Python GUI 엔지니어이다.
+./plans/bitget_ticker_work_order.md 문서를 면밀히 읽고, 해당 지시서 내용에 맞추어 다음 작업을 단일 컨텍스트 내에서 모두 수행하라.
+1) bitget_ticker 디렉토리 구조 및 파일 (requirements.txt, 진입점 scripts) 작성
+2) ConfigManager 구현 (components/config.py)
+3) PriceFetcher 구현 (components/fetcher.py)
+4) AlarmEngine 구현 (components/alarm.py)
+5) OverlayWindow 구현 (components/overlay.py)
+6) TrayIcon 구현 (components/tray.py)
+7) SettingsDialog 구현 (components/settings.py)
+8) 메인 모듈 (ticker.py, main.py, run.bat) 구현
+작업 완료 시, 구현 내용을 점검하라.
