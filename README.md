@@ -9,9 +9,10 @@ The widget runs completely in the background without title bars, sits on top of 
 - **Live BTC/USDT Price**, updated automatically based on your polling interval.
 - **Floating Overlay** widget that always stays on top of other applications.
 - **Customizable Appearance** including transparency (opacity) and drag-to-save overlay placement.
+- **Selectable Market Type** with `Futures` as the default source and `Spot` as an optional fallback in settings.
 - **Flexible Polling Interval** adjustable from 30 seconds up to 30 minutes.
 - **Visual Direction Indicators**: Colors and arrows adjust dynamically (up=green ▲, down=red ▼).
-- **Price Alarms**: Set up to 4 target prices, enable or disable each alert individually, and choose between `Popup` mode or a silent `Notification` mode with a 5-second flashing overlay cue.
+- **Price Alarms**: Set up to 6 target prices, enable or disable each alert individually, and choose `Popup` or silent `Notification` mode per alert.
 - **System Tray Integration**: Easily access settings or exit the app through a discrete tray icon.
 
 ## Requirements
@@ -41,8 +42,8 @@ pythonw main.py
 1. **Reposition Widget**: By default, the widget appears near the bottom-right of your screen. Simply click and drag anywhere on the widget to move it around. Dragging always saves the current position.
 2. **Settings Menu**: Right-click the widget itself, or right-click the Bitget orange logo in your System Tray, and click **Settings**.
 3. **Configure Settings**:
-   - **Alarms Tab**: Input up to 4 target price triggers, toggle each one on or off, and choose the global alert action.
-   - **Interval Tab**: Adjust how often it pulls the latest price from Bitget between 30 seconds and 30 minutes.
+   - **Alarms Tab**: Input up to 6 target price triggers, toggle each one on or off, and choose `Popup` or `Notification` for each alert independently.
+   - **Interval Tab**: Choose `Futures` or `Spot`, then adjust how often it pulls the latest price from Bitget between 30 seconds and 30 minutes.
    - **Display Tab**: Use the drag-position guide and the opacity slider to make the ticker semi-transparent so it does not obstruct your workflow.
 
 ## Compiled Windows Executable (.exe)

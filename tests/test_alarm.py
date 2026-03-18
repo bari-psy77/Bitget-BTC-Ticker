@@ -7,23 +7,26 @@ from bitget_ticker.components.alarm import AlarmEngine
 
 class AlarmEngineTests(unittest.TestCase):
     def test_first_check_only_initializes_states(self) -> None:
-        triggered: list[tuple[float, float]] = []
-        engine = AlarmEngine(on_alarm=lambda alarm, price: triggered.append((alarm, price)))
+        triggered: list[tuple[float, float, str]] = []
+        engine = AlarmEngine(on_alarm=lambda alarm, price, mode: triggered.append((alarm, price, mode)))
 
         engine.check(90000.0, [95000.0])
 
         self.assertEqual(triggered, [])
-        self.assertEqual(engine.alarm_states["0:95000.0"], "below")
+        self.assertEqual(engine.alarm_states["0:95000.0:popup"], "below")
 
     def test_crossing_threshold_triggers_in_both_directions(self) -> None:
-        triggered: list[tuple[float, float]] = []
-        engine = AlarmEngine(on_alarm=lambda alarm, price: triggered.append((alarm, price)))
+        triggered: list[tuple[float, float, str]] = []
+        engine = AlarmEngine(on_alarm=lambda alarm, price, mode: triggered.append((alarm, price, mode)))
 
         engine.check(90000.0, [95000.0])
         engine.check(96000.0, [95000.0])
         engine.check(94000.0, [95000.0])
 
-        self.assertEqual(triggered, [(95000.0, 96000.0), (95000.0, 94000.0)])
+        self.assertEqual(
+            triggered,
+            [(95000.0, 96000.0, "popup"), (95000.0, 94000.0, "popup")],
+        )
 
     def test_reset_clears_runtime_states(self) -> None:
         engine = AlarmEngine(on_alarm=lambda *_args: None)
@@ -34,28 +37,27 @@ class AlarmEngineTests(unittest.TestCase):
         self.assertEqual(engine.alarm_states, {})
 
     def test_disabled_alarm_entries_do_not_trigger(self) -> None:
-        triggered: list[tuple[float, float]] = []
-        engine = AlarmEngine(on_alarm=lambda alarm, price: triggered.append((alarm, price)))
+        triggered: list[tuple[float, float, str]] = []
+        engine = AlarmEngine(on_alarm=lambda alarm, price, mode: triggered.append((alarm, price, mode)))
 
-        engine.check(90000.0, [{"price": 95000.0, "enabled": False}])
-        engine.check(96000.0, [{"price": 95000.0, "enabled": False}])
+        engine.check(90000.0, [{"price": 95000.0, "enabled": False, "mode": "popup"}])
+        engine.check(96000.0, [{"price": 95000.0, "enabled": False, "mode": "popup"}])
 
         self.assertEqual(triggered, [])
         self.assertEqual(engine.alarm_states, {})
 
-    def test_sound_provider_can_disable_beep_for_notification_mode(self) -> None:
-        triggered: list[tuple[float, float]] = []
+    def test_notification_mode_triggers_without_beep(self) -> None:
+        triggered: list[tuple[float, float, str]] = []
         beep_calls: list[str] = []
         engine = AlarmEngine(
-            on_alarm=lambda alarm, price: triggered.append((alarm, price)),
+            on_alarm=lambda alarm, price, mode: triggered.append((alarm, price, mode)),
             beep_func=lambda: beep_calls.append("beep"),
-            beep_enabled_provider=lambda: False,
         )
 
-        engine.check(90000.0, [{"price": 95000.0, "enabled": True}])
-        engine.check(96000.0, [{"price": 95000.0, "enabled": True}])
+        engine.check(90000.0, [{"price": 95000.0, "enabled": True, "mode": "notification"}])
+        engine.check(96000.0, [{"price": 95000.0, "enabled": True, "mode": "notification"}])
 
-        self.assertEqual(triggered, [(95000.0, 96000.0)])
+        self.assertEqual(triggered, [(95000.0, 96000.0, "notification")])
         self.assertEqual(beep_calls, [])
 
 

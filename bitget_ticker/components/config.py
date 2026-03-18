@@ -10,14 +10,15 @@ class ConfigManager:
 
     DEFAULT_CONFIG: dict[str, Any] = {
         "interval_seconds": 300,
+        "market_type": "futures",
         "alarms": [],
-        "alert_mode": "popup",
         "opacity": 0.85,
         "custom_position": None,
     }
     MIN_INTERVAL_SECONDS = 30
     MAX_INTERVAL_SECONDS = 1800
-    ALERT_MODE_OPTIONS = {"popup", "notification"}
+    MARKET_TYPE_OPTIONS = {"spot", "futures"}
+    ALARM_MODE_OPTIONS = {"popup", "notification"}
 
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or (Path.home() / ".bitget_ticker_config.json")
@@ -63,8 +64,9 @@ class ConfigManager:
                     interval = config["interval_seconds"]
 
         opacity = data.get("opacity", config["opacity"])
+        market_type = data.get("market_type", config["market_type"])
         alarms = data.get("alarms", config["alarms"])
-        alert_mode = data.get("alert_mode", config["alert_mode"])
+        legacy_alert_mode = data.get("alert_mode", "popup")
         custom_position = data.get("custom_position")
 
         try:
@@ -82,13 +84,13 @@ class ConfigManager:
             opacity_value = config["opacity"]
         config["opacity"] = min(1.0, max(0.2, opacity_value))
 
-        if alert_mode in self.ALERT_MODE_OPTIONS:
-            config["alert_mode"] = alert_mode
+        if market_type in self.MARKET_TYPE_OPTIONS:
+            config["market_type"] = market_type
 
         parsed_alarms: list[dict[str, Any]] = []
         if isinstance(alarms, list):
             for alarm in alarms:
-                parsed_alarm = self._normalize_alarm_entry(alarm)
+                parsed_alarm = self._normalize_alarm_entry(alarm, legacy_alert_mode)
                 if parsed_alarm is not None:
                     parsed_alarms.append(parsed_alarm)
         config["alarms"] = parsed_alarms
@@ -97,13 +99,21 @@ class ConfigManager:
 
         return config
 
-    def _normalize_alarm_entry(self, alarm: Any) -> dict[str, Any] | None:
+    def _normalize_alarm_entry(
+        self,
+        alarm: Any,
+        default_mode: Any = "popup",
+    ) -> dict[str, Any] | None:
         raw_price = alarm
         enabled = True
+        mode = default_mode if default_mode in self.ALARM_MODE_OPTIONS else "popup"
 
         if isinstance(alarm, dict):
             raw_price = alarm.get("price")
             enabled = bool(alarm.get("enabled", True))
+            raw_mode = alarm.get("mode", mode)
+            if raw_mode in self.ALARM_MODE_OPTIONS:
+                mode = raw_mode
 
         try:
             price = float(raw_price)
@@ -113,6 +123,7 @@ class ConfigManager:
         return {
             "price": price,
             "enabled": enabled,
+            "mode": mode,
         }
 
     def _normalize_custom_position(

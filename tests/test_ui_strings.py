@@ -13,9 +13,14 @@ class UiStringTests(unittest.TestCase):
             "Drag the overlay with the mouse to save its position.",
         )
 
-    def test_settings_dialog_exposes_alert_mode_labels(self) -> None:
+    def test_settings_dialog_exposes_market_and_mode_labels(self) -> None:
+        self.assertEqual(SettingsDialog.MARKET_TYPE_FUTURES_LABEL, "Futures")
+        self.assertEqual(SettingsDialog.MARKET_TYPE_SPOT_LABEL, "Spot")
         self.assertEqual(SettingsDialog.POPUP_MODE_LABEL, "Popup")
         self.assertEqual(SettingsDialog.NOTIFICATION_MODE_LABEL, "Notification")
+
+    def test_settings_dialog_alarm_slot_count_is_six(self) -> None:
+        self.assertEqual(SettingsDialog.ALARM_SLOT_COUNT, 6)
 
     def test_tray_menu_labels_are_english(self) -> None:
         self.assertEqual(TrayIcon.SETTINGS_MENU_LABEL, "Settings")

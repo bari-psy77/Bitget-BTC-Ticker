@@ -15,14 +15,13 @@ class _OverlayStub:
 
 
 class BitgetTickerAlertModeTests(unittest.TestCase):
-    def test_on_alarm_uses_overlay_notification_in_notification_mode(self) -> None:
+    def test_on_alarm_uses_overlay_notification_for_notification_alarm(self) -> None:
         app = BitgetBTCTicker.__new__(BitgetBTCTicker)
-        app.config = {"alert_mode": "notification"}
         app.overlay = _OverlayStub()
         app.root = object()
 
         with patch("bitget_ticker.ticker.messagebox.showinfo") as showinfo:
-            app.on_alarm(95000.0, 96000.0)
+            app.on_alarm(95000.0, 96000.0, "notification")
 
         self.assertEqual(app.overlay.notifications, [(95000.0, 96000.0)])
         showinfo.assert_not_called()

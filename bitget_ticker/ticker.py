@@ -18,7 +18,7 @@ class BitgetBTCTicker:
     def __init__(self) -> None:
         self.config_manager = ConfigManager()
         self.config = self.config_manager.load()
-        self.price_fetcher = PriceFetcher()
+        self.price_fetcher = PriceFetcher(market_type=str(self.config.get("market_type", "futures")))
 
         self.running = True
         self.previous_price: float | None = None
@@ -34,10 +34,7 @@ class BitgetBTCTicker:
         )
         self.root = self.overlay.root
 
-        self.alarm_engine = AlarmEngine(
-            on_alarm=self.on_alarm,
-            beep_enabled_provider=self._should_play_alarm_sound,
-        )
+        self.alarm_engine = AlarmEngine(on_alarm=self.on_alarm)
         self.overlay.attach_alarm_engine(self.alarm_engine, self._current_alarms)
 
         self.settings_dialog = SettingsDialog(
@@ -83,11 +80,12 @@ class BitgetBTCTicker:
     def apply_settings(self, config: dict[str, object]) -> None:
         self.config = {
             "interval_seconds": int(config["interval_seconds"]),
+            "market_type": str(config.get("market_type", "futures")),
             "alarms": self._copy_alarm_items(config.get("alarms")),
-            "alert_mode": str(config.get("alert_mode", "popup")),
             "opacity": float(config["opacity"]),
             "custom_position": self._copy_custom_position(config.get("custom_position")),
         }
+        self.price_fetcher.set_market_type(str(self.config["market_type"]))
         self.overlay.set_opacity(float(self.config["opacity"]))
         self.overlay.set_position(self._copy_custom_position(self.config.get("custom_position")))
         self.alarm_engine.reset()
@@ -105,8 +103,8 @@ class BitgetBTCTicker:
         self.tray_icon.stop()
         self.root.after(0, self._shutdown_ui)
 
-    def on_alarm(self, alarm_price: float, current_price: float) -> None:
-        if str(self.config.get("alert_mode", "popup")) == "notification":
+    def on_alarm(self, alarm_price: float, current_price: float, mode: str) -> None:
+        if mode == "notification":
             self.overlay.show_notification(alarm_price, current_price)
             return
 
@@ -141,8 +139,8 @@ class BitgetBTCTicker:
     def _current_config(self) -> dict[str, object]:
         return {
             "interval_seconds": int(self.config["interval_seconds"]),
+            "market_type": str(self.config.get("market_type", "futures")),
             "alarms": self._copy_alarm_items(self.config.get("alarms")),
-            "alert_mode": str(self.config.get("alert_mode", "popup")),
             "opacity": float(self.config["opacity"]),
             "custom_position": self._copy_custom_position(self.config.get("custom_position")),
         }
@@ -184,12 +182,10 @@ class BitgetBTCTicker:
                 {
                     "price": price,
                     "enabled": bool(alarm.get("enabled", True)),
+                    "mode": "notification" if alarm.get("mode") == "notification" else "popup",
                 }
             )
         return alarms
-
-    def _should_play_alarm_sound(self) -> bool:
-        return str(self.config.get("alert_mode", "popup")) == "popup"
 
 
 def main() -> None:

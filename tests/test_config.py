@@ -17,11 +17,12 @@ class ConfigManagerTests(unittest.TestCase):
             config = manager.load()
 
             self.assertEqual(config["interval_seconds"], 300)
+            self.assertEqual(config["market_type"], "futures")
             self.assertEqual(config["alarms"], [])
-            self.assertEqual(config["alert_mode"], "popup")
             self.assertEqual(config["opacity"], 0.85)
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
+            self.assertNotIn("alert_mode", config)
 
     def test_save_excludes_runtime_alarm_states(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -31,10 +32,10 @@ class ConfigManagerTests(unittest.TestCase):
             payload = {
                 "interval_seconds": 600,
                 "alarms": [
-                    {"price": 95000.0, "enabled": True},
-                    {"price": 100000.0, "enabled": False},
+                    {"price": 95000.0, "enabled": True, "mode": "popup"},
+                    {"price": 100000.0, "enabled": False, "mode": "notification"},
                 ],
-                "alert_mode": "notification",
+                "market_type": "spot",
                 "opacity": 0.65,
                 "custom_position": {"x": 120, "y": 80},
                 "alarm_states": {"95000.0": "above"},
@@ -48,14 +49,15 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(
                 saved["alarms"],
                 [
-                    {"price": 95000.0, "enabled": True},
-                    {"price": 100000.0, "enabled": False},
+                    {"price": 95000.0, "enabled": True, "mode": "popup"},
+                    {"price": 100000.0, "enabled": False, "mode": "notification"},
                 ],
             )
-            self.assertEqual(saved["alert_mode"], "notification")
+            self.assertEqual(saved["market_type"], "spot")
             self.assertEqual(saved["opacity"], 0.65)
             self.assertEqual(saved["custom_position"], {"x": 120, "y": 80})
             self.assertNotIn("position", saved)
+            self.assertNotIn("alert_mode", saved)
 
     def test_load_converts_legacy_interval_minutes_to_seconds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -69,9 +71,10 @@ class ConfigManagerTests(unittest.TestCase):
             config = manager.load()
 
             self.assertEqual(config["interval_seconds"], 900)
-            self.assertEqual(config["alert_mode"], "popup")
+            self.assertEqual(config["market_type"], "futures")
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
+            self.assertNotIn("alert_mode", config)
 
     def test_load_clamps_interval_seconds_and_custom_position(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -126,6 +129,7 @@ class ConfigManagerTests(unittest.TestCase):
                 json.dumps(
                     {
                         "alarms": [95000, "100000.5"],
+                        "alert_mode": "notification",
                     },
                     ensure_ascii=False,
                 ),
@@ -138,11 +142,12 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(
                 config["alarms"],
                 [
-                    {"price": 95000.0, "enabled": True},
-                    {"price": 100000.5, "enabled": True},
+                    {"price": 95000.0, "enabled": True, "mode": "notification"},
+                    {"price": 100000.5, "enabled": True, "mode": "notification"},
                 ],
             )
-            self.assertEqual(config["alert_mode"], "popup")
+            self.assertEqual(config["market_type"], "futures")
+            self.assertNotIn("alert_mode", config)
 
 
 if __name__ == "__main__":
