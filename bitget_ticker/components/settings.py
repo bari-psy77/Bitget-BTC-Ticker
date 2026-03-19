@@ -44,6 +44,10 @@ class SettingsDialog:
         self.config_getter = config_getter
         self.on_save = on_save
         self.window: tk.Toplevel | None = None
+        self.notebook: ttk.Notebook | None = None
+        self.alarm_tab: ttk.Frame | None = None
+        self.alarm_canvas: tk.Canvas | None = None
+        self.alarm_window_id: int | None = None
         self.alarm_vars: list[tk.StringVar] = []
         self.alarm_enabled_vars: list[tk.BooleanVar] = []
         self.alarm_mode_vars: list[tk.StringVar] = []
@@ -74,6 +78,8 @@ class SettingsDialog:
 
         notebook = ttk.Notebook(self.window)
         notebook.pack(fill="both", expand=True, padx=12, pady=12)
+        notebook.bind("<<NotebookTabChanged>>", self._handle_tab_changed)
+        self.notebook = notebook
 
         alarm_tab = ttk.Frame(notebook)
         interval_tab = ttk.Frame(notebook)
@@ -85,6 +91,7 @@ class SettingsDialog:
         self._build_alarm_tab(alarm_tab, config)
         self._build_interval_tab(interval_tab, config)
         self._build_display_tab(display_tab, config)
+        self.window.after_idle(lambda: self._refresh_alarm_tab_layout(reset_scroll=True))
 
         actions = tk.Frame(self.window, pady=10)
         actions.pack(fill="x")
@@ -97,6 +104,7 @@ class SettingsDialog:
         )
 
     def _build_alarm_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
+        self.alarm_tab = parent
         alarms = list(config.get("alarms", []))[: self.ALARM_SLOT_COUNT]
         while len(alarms) < self.ALARM_SLOT_COUNT:
             alarms.append({"price": "", "enabled": True, "mode": "popup"})
@@ -107,20 +115,16 @@ class SettingsDialog:
         canvas = tk.Canvas(outer, highlightthickness=0, borderwidth=0)
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         container = tk.Frame(canvas, padx=18, pady=18)
+        self.alarm_canvas = canvas
 
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
         window_id = canvas.create_window((0, 0), window=container, anchor="nw")
-        container.bind(
-            "<Configure>",
-            lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
-        )
-        canvas.bind(
-            "<Configure>",
-            lambda event: canvas.itemconfigure(window_id, width=event.width),
-        )
+        self.alarm_window_id = window_id
+        container.bind("<Configure>", self._update_alarm_scroll_region)
+        canvas.bind("<Configure>", self._handle_alarm_canvas_configure)
         self._bind_mousewheel_scroll(canvas, container)
 
         self.alarm_vars = []
@@ -385,6 +389,43 @@ class SettingsDialog:
         if self.window is not None and self.window.winfo_exists():
             self.window.destroy()
         self.window = None
+        self.notebook = None
+        self.alarm_tab = None
+        self.alarm_canvas = None
+        self.alarm_window_id = None
+
+    def _handle_tab_changed(self, event: tk.Event) -> None:
+        if self.alarm_tab is None:
+            return
+        selected_tab = event.widget.nametowidget(event.widget.select())
+        if selected_tab == self.alarm_tab:
+            self._refresh_alarm_tab_layout(reset_scroll=True)
+
+    def _handle_alarm_canvas_configure(self, event: tk.Event) -> None:
+        self._resize_alarm_container(event.width)
+
+    def _update_alarm_scroll_region(self, _event: tk.Event | None = None) -> None:
+        if self.alarm_canvas is None:
+            return
+        self.alarm_canvas.configure(scrollregion=self.alarm_canvas.bbox("all"))
+
+    def _resize_alarm_container(self, measured_width: int) -> None:
+        if self.alarm_canvas is None or self.alarm_window_id is None:
+            return
+        width = self.resolve_scroll_canvas_width(
+            measured_width=measured_width,
+            fallback_width=self.WINDOW_WIDTH - 80,
+        )
+        self.alarm_canvas.itemconfigure(self.alarm_window_id, width=width)
+
+    def _refresh_alarm_tab_layout(self, reset_scroll: bool = False) -> None:
+        if self.window is None or self.alarm_canvas is None:
+            return
+        self.window.update_idletasks()
+        self._resize_alarm_container(self.alarm_canvas.winfo_width())
+        self._update_alarm_scroll_region()
+        if reset_scroll:
+            self.alarm_canvas.yview_moveto(0.0)
 
     @staticmethod
     def _bind_mousewheel_scroll(canvas: tk.Canvas, target: tk.Widget) -> None:
@@ -395,6 +436,12 @@ class SettingsDialog:
 
         target.bind("<Enter>", lambda _event: canvas.bind_all("<MouseWheel>", _scroll), add="+")
         target.bind("<Leave>", lambda _event: canvas.unbind_all("<MouseWheel>"), add="+")
+
+    @staticmethod
+    def resolve_scroll_canvas_width(measured_width: int, fallback_width: int) -> int:
+        if measured_width <= 1:
+            return fallback_width
+        return measured_width
 
     @staticmethod
     def _format_interval_label(seconds: int) -> str:
