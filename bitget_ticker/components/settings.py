@@ -83,13 +83,14 @@ class SettingsDialog:
             self._initial_opacity = int(float(config["opacity"]) * 100)
 
             self.window = tk.Toplevel(self.root)
+            self.window.withdraw()  # hide until fully built
             self.window.title(self.WINDOW_TITLE)
             self.window.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}")
             self.window.minsize(self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
             self.window.resizable(True, True)
             self.window.attributes("-topmost", True)
             self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
-            logger.debug("window created")
+            logger.debug("window created (hidden)")
 
             # --- Tab bar ---
             tab_bar = tk.Frame(self.window, bg=self.TAB_INACTIVE_BG)
@@ -130,6 +131,10 @@ class SettingsDialog:
             tk.Button(actions, text=self.CANCEL_BUTTON_LABEL, width=12, command=self._handle_close).pack(
                 side="right",
             )
+            # Show the fully-built window
+            self.window.deiconify()
+            self.window.lift()
+            self.window.focus_force()
             logger.debug("show() complete (first create)")
             self.window.after(200, self._debug_layout)
         except Exception:
