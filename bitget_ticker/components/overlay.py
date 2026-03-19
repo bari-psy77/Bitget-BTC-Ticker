@@ -5,6 +5,8 @@ from collections.abc import Callable
 
 from bitget_ticker.components.alarm import AlarmEngine
 
+Candle = tuple[int, float, float, float, float]
+
 
 class OverlayWindow:
     """Bottom overlay window for BTC price display."""
@@ -26,10 +28,12 @@ class OverlayWindow:
     CHART_BORDER = "#30363d"
     CHART_LINE_COLOR = "#58a6ff"
     CHART_GRID_COLOR = "#2d333b"
+    ICON_COLOR = "#f7931a"
     UP_COLOR = "#00d4aa"
     DOWN_COLOR = "#ff6b6b"
     FLAT_COLOR = "#c9d1d9"
     NOTIFICATION_COLOR = "#ffd166"
+    NOTIFICATION_TEXT_COLOR = "#0d1117"
 
     def __init__(
         self,
@@ -58,7 +62,7 @@ class OverlayWindow:
         self._notification_flash_on = False
         self._notification_flash_job: str | None = None
         self._notification_clear_job: str | None = None
-        self._chart_points: list[tuple[int, float]] = []
+        self._chart_points: list[Candle] = []
         self._chart_timeframe = "15m"
         self._chart_market_type = "futures"
         self._chart_window: tk.Toplevel | None = None
@@ -125,8 +129,7 @@ class OverlayWindow:
         self._render_display()
 
     def show_notification(self, alarm_price: float, current_price: float) -> None:
-        del current_price
-        self._notification_message = f"Hit {self._format_alert_price(alarm_price)}"
+        self._notification_message = self.build_notification_message(alarm_price, current_price)
         self._notification_flash_on = True
         self._cancel_notification_jobs()
         self._render_display()
@@ -141,12 +144,21 @@ class OverlayWindow:
 
     def update_chart_data(
         self,
-        candles: list[tuple[int, float]],
+        candles: list[Candle],
         timeframe: str,
         market_type: str,
     ) -> None:
         self._chart_points = sorted(
-            [(int(timestamp), float(close_price)) for timestamp, close_price in candles],
+            [
+                (
+                    int(timestamp),
+                    float(open_price),
+                    float(high_price),
+                    float(low_price),
+                    float(close_price),
+                )
+                for timestamp, open_price, high_price, low_price, close_price in candles
+            ],
             key=lambda item: item[0],
         )
         self._chart_timeframe = "5m" if timeframe == "5m" else "15m"
@@ -161,7 +173,7 @@ class OverlayWindow:
             self.container,
             text="₿",
             bg=self.BACKGROUND,
-            fg="#f7931a",
+            fg=self.ICON_COLOR,
             font=("Segoe UI", 14, "bold"),
         )
         self.icon_label.pack(side="left")
@@ -273,11 +285,16 @@ class OverlayWindow:
 
     def _render_display(self) -> None:
         if self._notification_message is not None:
-            color = self.NOTIFICATION_COLOR if self._notification_flash_on else self._latest_color
+            background = self.NOTIFICATION_COLOR if self._notification_flash_on else self.BACKGROUND
+            color = self.NOTIFICATION_TEXT_COLOR if self._notification_flash_on else self.NOTIFICATION_COLOR
+            self._apply_display_theme(background)
+            self.icon_label.config(text="!", fg=color)
             self.price_label.config(text=self._notification_message, fg=color)
             self.direction_label.config(text="!", fg=color)
             return
 
+        self._apply_display_theme(self.BACKGROUND)
+        self.icon_label.config(text="₿", fg=self.ICON_COLOR)
         self.price_label.config(text=self._latest_price_text, fg=self._latest_color)
         self.direction_label.config(text=self._latest_direction_text, fg=self._latest_color)
 
@@ -459,9 +476,11 @@ class OverlayWindow:
             )
             return
 
-        closes = [close_price for _, close_price in self._chart_points]
-        minimum = min(closes)
-        maximum = max(closes)
+        lows = [low_price for _ts, _open, _high, low_price, _close in self._chart_points]
+        highs = [high_price for _ts, _open, high_price, _low, _close in self._chart_points]
+        closes = [close_price for _ts, _open, _high, _low, close_price in self._chart_points]
+        minimum = min(lows)
+        maximum = max(highs)
         if minimum == maximum:
             minimum -= 1
             maximum += 1
@@ -488,28 +507,36 @@ class OverlayWindow:
                 width=1,
             )
 
-        range_size = maximum - minimum
-        points: list[float] = []
-        for index, close_price in enumerate(closes):
-            x = padding + (chart_width * index / (len(closes) - 1))
-            ratio = (close_price - minimum) / range_size
-            y = height - padding - (ratio * chart_height)
-            points.extend((x, y))
+        geometry = self.build_candle_geometry(
+            candles=self._chart_points,
+            width=width,
+            height=height,
+            padding=padding,
+        )
+        for item in geometry:
+            canvas.create_line(
+                item["center_x"],
+                item["wick_top"],
+                item["center_x"],
+                item["wick_bottom"],
+                fill=item["color"],
+                width=1,
+            )
+            canvas.create_rectangle(
+                item["body_left"],
+                item["body_top"],
+                item["body_right"],
+                item["body_bottom"],
+                fill=item["color"],
+                outline=item["color"],
+            )
 
-        canvas.create_line(
-            *points,
-            fill=self.CHART_LINE_COLOR,
-            width=2,
-            smooth=True,
-        )
-        canvas.create_oval(
-            points[-2] - 3,
-            points[-1] - 3,
-            points[-2] + 3,
-            points[-1] + 3,
-            fill=self.CHART_LINE_COLOR,
-            outline="",
-        )
+    def _apply_display_theme(self, background: str) -> None:
+        self.root.configure(bg=background)
+        self.container.configure(bg=background)
+        self.icon_label.configure(bg=background)
+        self.price_label.configure(bg=background)
+        self.direction_label.configure(bg=background)
 
     def _cancel_chart_hover_job(self) -> None:
         if self._chart_hover_job is None:
@@ -532,6 +559,68 @@ class OverlayWindow:
     def _cancel_chart_jobs(self) -> None:
         self._cancel_chart_hover_job()
         self._cancel_chart_hide_job()
+
+    @staticmethod
+    def build_notification_message(alarm_price: float, current_price: float) -> str:
+        return (
+            f"Alert {OverlayWindow._format_alert_price(alarm_price)}"
+            f" -> ${current_price:,.2f}"
+        )
+
+    @classmethod
+    def build_candle_geometry(
+        cls,
+        candles: list[Candle],
+        width: int,
+        height: int,
+        padding: int,
+    ) -> list[dict[str, float | str]]:
+        if len(candles) < 1:
+            return []
+
+        lows = [low_price for _ts, _open, _high, low_price, _close in candles]
+        highs = [high_price for _ts, _open, high_price, _low, _close in candles]
+        minimum = min(lows)
+        maximum = max(highs)
+        if minimum == maximum:
+            minimum -= 1
+            maximum += 1
+
+        chart_width = max(1, width - padding * 2)
+        chart_height = max(1, height - padding * 2)
+        slot_width = chart_width / max(1, len(candles))
+        body_width = max(4.0, min(12.0, slot_width * 0.6))
+        price_range = maximum - minimum
+
+        def price_to_y(price: float) -> float:
+            ratio = (price - minimum) / price_range
+            return height - padding - (ratio * chart_height)
+
+        geometry: list[dict[str, float | str]] = []
+        for index, (_timestamp, open_price, high_price, low_price, close_price) in enumerate(candles):
+            center_x = padding + (slot_width * index) + (slot_width / 2)
+            open_y = price_to_y(open_price)
+            close_y = price_to_y(close_price)
+            high_y = price_to_y(high_price)
+            low_y = price_to_y(low_price)
+            body_top = min(open_y, close_y)
+            body_bottom = max(open_y, close_y)
+            if abs(body_bottom - body_top) < 2:
+                body_bottom = body_top + 2
+            color = cls.UP_COLOR if close_price >= open_price else cls.DOWN_COLOR
+            geometry.append(
+                {
+                    "center_x": center_x,
+                    "wick_top": high_y,
+                    "wick_bottom": low_y,
+                    "body_left": center_x - (body_width / 2),
+                    "body_right": center_x + (body_width / 2),
+                    "body_top": body_top,
+                    "body_bottom": body_bottom,
+                    "color": color,
+                }
+            )
+        return geometry
 
     @staticmethod
     def _format_alert_price(alarm_price: float) -> str:

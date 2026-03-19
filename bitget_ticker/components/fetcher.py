@@ -23,6 +23,7 @@ FUTURES_TIMEFRAME_GRANULARITY_MAP = {
     "5m": "5m",
     "15m": "15m",
 }
+Candle = tuple[int, float, float, float, float]
 
 
 class PriceFetcher:
@@ -70,7 +71,7 @@ class PriceFetcher:
         self,
         timeframe: str = "15m",
         limit: int = DEFAULT_CANDLE_LIMIT,
-    ) -> list[tuple[int, float]]:
+    ) -> list[Candle]:
         if self.session is None:
             return []
 
@@ -86,12 +87,20 @@ class PriceFetcher:
             if not isinstance(data, list):
                 return []
 
-            candles: list[tuple[int, float]] = []
+            candles: list[Candle] = []
             for row in data:
                 if not isinstance(row, (list, tuple)) or len(row) < 5:
                     continue
                 try:
-                    candles.append((int(row[0]), float(row[4])))
+                    candles.append(
+                        (
+                            int(row[0]),
+                            float(row[1]),
+                            float(row[2]),
+                            float(row[3]),
+                            float(row[4]),
+                        )
+                    )
                 except (TypeError, ValueError):
                     continue
             candles.sort(key=lambda item: item[0])

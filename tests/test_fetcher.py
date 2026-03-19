@@ -87,8 +87,8 @@ class PriceFetcherTests(unittest.TestCase):
         self.assertEqual(
             candles,
             [
-                (1710000000000, 90300.0),
-                (1710000900000, 90850.0),
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
             ],
         )
         session.get.assert_called_once_with(
@@ -119,7 +119,7 @@ class PriceFetcherTests(unittest.TestCase):
 
         candles = fetcher.get_btc_candles("5m")
 
-        self.assertEqual(candles, [(1710000000000, 90300.0)])
+        self.assertEqual(candles, [(1710000000000, 90000.0, 90500.0, 89500.0, 90300.0)])
         session.get.assert_called_once_with(
             SPOT_CANDLES_URL,
             params={

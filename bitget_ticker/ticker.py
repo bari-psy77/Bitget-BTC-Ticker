@@ -6,7 +6,7 @@ from tkinter import messagebox
 
 from bitget_ticker.components.alarm import AlarmEngine
 from bitget_ticker.components.config import ConfigManager
-from bitget_ticker.components.fetcher import PriceFetcher
+from bitget_ticker.components.fetcher import Candle, PriceFetcher
 from bitget_ticker.components.overlay import OverlayWindow
 from bitget_ticker.components.settings import SettingsDialog
 from bitget_ticker.components.tray import TrayIcon
@@ -22,7 +22,7 @@ class BitgetBTCTicker:
 
         self.running = True
         self.previous_price: float | None = None
-        self.chart_points: list[tuple[int, float]] = []
+        self.chart_points: list[Candle] = []
         self.update_thread: threading.Thread | None = None
         self._config_changed = threading.Event()
 
@@ -153,11 +153,14 @@ class BitgetBTCTicker:
     def _apply_market_snapshot(
         self,
         price: float,
-        candles: list[tuple[int, float]],
+        candles: list[Candle],
     ) -> None:
         self.overlay.update_display(price, self.previous_price)
         self.previous_price = price
-        self.chart_points = [(int(ts), float(close)) for ts, close in candles]
+        self.chart_points = [
+            (int(ts), float(open_price), float(high_price), float(low_price), float(close_price))
+            for ts, open_price, high_price, low_price, close_price in candles
+        ]
         self.overlay.update_chart_data(
             candles=list(self.chart_points),
             timeframe=str(self.config.get("chart_timeframe", "15m")),

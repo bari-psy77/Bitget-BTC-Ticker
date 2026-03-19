@@ -10,7 +10,7 @@ class _OverlayStub:
     def __init__(self) -> None:
         self.notifications: list[tuple[float, float]] = []
         self.display_updates: list[tuple[float, float | None]] = []
-        self.chart_updates: list[tuple[list[tuple[int, float]], str, str]] = []
+        self.chart_updates: list[tuple[list[tuple[int, float, float, float, float]], str, str]] = []
 
     def show_notification(self, alarm_price: float, current_price: float) -> None:
         self.notifications.append((alarm_price, current_price))
@@ -20,7 +20,7 @@ class _OverlayStub:
 
     def update_chart_data(
         self,
-        candles: list[tuple[int, float]],
+        candles: list[tuple[int, float, float, float, float]],
         timeframe: str,
         market_type: str,
     ) -> None:
@@ -51,7 +51,10 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
 
         app._apply_market_snapshot(
             91000.0,
-            [(1710000000000, 90300.0), (1710000900000, 90850.0)],
+            [
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
+            ],
         )
 
         self.assertEqual(app.overlay.display_updates, [(91000.0, 90000.0)])
@@ -59,7 +62,10 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
             app.overlay.chart_updates,
             [
                 (
-                    [(1710000000000, 90300.0), (1710000900000, 90850.0)],
+                    [
+                        (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
+                        (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
+                    ],
                     "15m",
                     "futures",
                 )
@@ -67,7 +73,10 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
         )
         self.assertEqual(
             app.chart_points,
-            [(1710000000000, 90300.0), (1710000900000, 90850.0)],
+            [
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
+            ],
         )
         self.assertEqual(app.previous_price, 91000.0)
 

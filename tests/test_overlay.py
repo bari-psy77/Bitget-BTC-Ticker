@@ -55,6 +55,27 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(x, 0)
         self.assertEqual(y, 10 + OverlayWindow.HEIGHT + 12)
 
+    def test_build_notification_message_includes_alarm_and_price(self) -> None:
+        message = OverlayWindow.build_notification_message(95000.0, 96010.55)
+
+        self.assertEqual(message, "Alert $95,000 -> $96,010.55")
+
+    def test_build_candle_geometry_returns_body_and_wick(self) -> None:
+        geometry = OverlayWindow.build_candle_geometry(
+            candles=[
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
+            ],
+            width=280,
+            height=120,
+            padding=16,
+        )
+
+        self.assertEqual(len(geometry), 2)
+        self.assertEqual(geometry[0]["color"], OverlayWindow.UP_COLOR)
+        self.assertLess(geometry[0]["wick_top"], geometry[0]["wick_bottom"])
+        self.assertLess(geometry[0]["body_top"], geometry[0]["body_bottom"])
+
 
 if __name__ == "__main__":
     unittest.main()
