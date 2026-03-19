@@ -58,7 +58,7 @@ class OverlayWindowPositionTests(unittest.TestCase):
     def test_build_notification_message_includes_alarm_and_price(self) -> None:
         message = OverlayWindow.build_notification_message(95000.0, 96010.55)
 
-        self.assertEqual(message, "Alert $95,000 -> $96,010.55")
+        self.assertEqual(message, "Hit $95,000")
 
     def test_build_candle_geometry_returns_body_and_wick(self) -> None:
         geometry = OverlayWindow.build_candle_geometry(

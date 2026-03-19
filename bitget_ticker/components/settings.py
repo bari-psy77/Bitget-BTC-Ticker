@@ -44,6 +44,7 @@ class SettingsDialog:
         self.config_getter = config_getter
         self.on_save = on_save
         self.window: tk.Toplevel | None = None
+        self._notebook: ttk.Notebook | None = None
         self.alarm_vars: list[tk.StringVar] = []
         self.alarm_enabled_vars: list[tk.BooleanVar] = []
         self.alarm_mode_vars: list[tk.StringVar] = []
@@ -86,8 +87,9 @@ class SettingsDialog:
         self._build_interval_tab(interval_tab, config)
         self._build_display_tab(display_tab, config)
 
-        notebook.select(0)
-        self.window.update_idletasks()
+        self._notebook = notebook
+        notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.window.bind("<Map>", self._on_window_map)
 
         actions = tk.Frame(self.window, pady=10)
         actions.pack(fill="x")
@@ -263,6 +265,21 @@ class SettingsDialog:
             length=280,
         ).pack(anchor="w")
         tk.Label(container, textvariable=self.opacity_label_var).pack(anchor="w", pady=(8, 0))
+
+    def _on_window_map(self, event: tk.Event) -> None:
+        if event.widget is not self.window:
+            return
+        if self.window is not None and self.window.winfo_exists():
+            self.window.after(50, self._refresh_layout)
+
+    def _on_tab_changed(self, _event: tk.Event) -> None:
+        if self.window is not None and self.window.winfo_exists():
+            self.window.after(10, self._refresh_layout)
+
+    def _refresh_layout(self) -> None:
+        if self.window is None or not self.window.winfo_exists():
+            return
+        self.window.update_idletasks()
 
     def _on_interval_change(self, value: str) -> None:
         if self.interval_label_var is None:

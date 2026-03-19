@@ -290,7 +290,7 @@ class OverlayWindow:
             self._apply_display_theme(background)
             self.icon_label.config(text="!", fg=color)
             self.price_label.config(text=self._notification_message, fg=color)
-            self.direction_label.config(text="!", fg=color)
+            self.direction_label.config(text="", fg=color)
             return
 
         self._apply_display_theme(self.BACKGROUND)
@@ -569,10 +569,7 @@ class OverlayWindow:
 
     @staticmethod
     def build_notification_message(alarm_price: float, current_price: float) -> str:
-        return (
-            f"Alert {OverlayWindow._format_alert_price(alarm_price)}"
-            f" -> ${current_price:,.2f}"
-        )
+        return f"Hit {OverlayWindow._format_alert_price(alarm_price)}"
 
     @classmethod
     def build_candle_geometry(
