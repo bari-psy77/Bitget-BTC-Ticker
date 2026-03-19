@@ -32,6 +32,10 @@ class SettingsDialog:
     CHART_TIMEFRAME_15M_LABEL = "15 min"
     CHART_GUIDE_TEXT = "Hover over the overlay for 2 seconds to open the mini chart."
 
+    TAB_ACTIVE_BG = "#ffffff"
+    TAB_INACTIVE_BG = "#e8e8e8"
+    TAB_BORDER_COLOR = "#cccccc"
+
     def __init__(
         self,
         root: tk.Tk,
@@ -44,7 +48,6 @@ class SettingsDialog:
         self.config_getter = config_getter
         self.on_save = on_save
         self.window: tk.Toplevel | None = None
-        self._notebook: ttk.Notebook | None = None
         self.alarm_vars: list[tk.StringVar] = []
         self.alarm_enabled_vars: list[tk.BooleanVar] = []
         self.alarm_mode_vars: list[tk.StringVar] = []
@@ -55,6 +58,9 @@ class SettingsDialog:
         self.opacity_var: tk.IntVar | None = None
         self.opacity_label_var: tk.StringVar | None = None
         self._initial_opacity = 85
+        self._tab_frames: list[tk.Frame] = []
+        self._tab_buttons: list[tk.Label] = []
+        self._active_tab = 0
 
     def show(self) -> None:
         if self.window is not None and self.window.winfo_exists():
@@ -73,24 +79,44 @@ class SettingsDialog:
         self.window.attributes("-topmost", True)
         self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
 
-        notebook = ttk.Notebook(self.window)
-        notebook.pack(fill="both", expand=True, padx=12, pady=12)
+        # --- Tab bar ---
+        tab_bar = tk.Frame(self.window, bg=self.TAB_INACTIVE_BG)
+        tab_bar.pack(fill="x", padx=12, pady=(12, 0))
 
-        alarm_tab = ttk.Frame(notebook)
-        interval_tab = ttk.Frame(notebook)
-        display_tab = ttk.Frame(notebook)
-        notebook.add(alarm_tab, text=self.ALERTS_TAB_TITLE)
-        notebook.add(interval_tab, text=self.INTERVAL_TAB_TITLE)
-        notebook.add(display_tab, text=self.DISPLAY_TAB_TITLE)
+        titles = [self.ALERTS_TAB_TITLE, self.INTERVAL_TAB_TITLE, self.DISPLAY_TAB_TITLE]
+        self._tab_buttons = []
+        for i, title in enumerate(titles):
+            btn = tk.Label(
+                tab_bar,
+                text=title,
+                padx=14,
+                pady=6,
+                cursor="hand2",
+                bg=self.TAB_INACTIVE_BG,
+            )
+            btn.pack(side="left")
+            btn.bind("<Button-1>", lambda e, idx=i: self._select_tab(idx))
+            self._tab_buttons.append(btn)
 
-        self._build_alarm_tab(alarm_tab, config)
-        self._build_interval_tab(interval_tab, config)
-        self._build_display_tab(display_tab, config)
+        # --- Separator ---
+        ttk.Separator(self.window, orient="horizontal").pack(fill="x", padx=12)
 
-        self._notebook = notebook
-        notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-        self.window.bind("<Map>", self._on_window_map)
+        # --- Content area ---
+        content_area = tk.Frame(self.window)
+        content_area.pack(fill="both", expand=True, padx=12)
 
+        alarm_frame = tk.Frame(content_area)
+        interval_frame = tk.Frame(content_area)
+        display_frame = tk.Frame(content_area)
+        self._tab_frames = [alarm_frame, interval_frame, display_frame]
+
+        self._build_alarm_tab(alarm_frame, config)
+        self._build_interval_tab(interval_frame, config)
+        self._build_display_tab(display_frame, config)
+
+        self._select_tab(0)
+
+        # --- Action buttons ---
         actions = tk.Frame(self.window, pady=10)
         actions.pack(fill="x")
         tk.Button(actions, text=self.SAVE_BUTTON_LABEL, width=12, command=self._save).pack(
@@ -101,7 +127,18 @@ class SettingsDialog:
             side="right",
         )
 
-    def _build_alarm_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
+    def _select_tab(self, index: int) -> None:
+        self._active_tab = index
+        for frame in self._tab_frames:
+            frame.pack_forget()
+        self._tab_frames[index].pack(fill="both", expand=True)
+        for i, btn in enumerate(self._tab_buttons):
+            if i == index:
+                btn.config(bg=self.TAB_ACTIVE_BG, font=("TkDefaultFont", 9, "bold"))
+            else:
+                btn.config(bg=self.TAB_INACTIVE_BG, font=("TkDefaultFont", 9))
+
+    def _build_alarm_tab(self, parent: tk.Frame, config: dict[str, Any]) -> None:
         alarms = list(config.get("alarms", []))[: self.ALARM_SLOT_COUNT]
         while len(alarms) < self.ALARM_SLOT_COUNT:
             alarms.append({"price": "", "enabled": True, "mode": "popup"})
@@ -135,8 +172,9 @@ class SettingsDialog:
             tk.Label(row, text=f"Alert {index} (USDT)", anchor="w", width=14).pack(
                 side="left",
             )
-            entry = tk.Entry(row, textvariable=var, width=24)
-            entry.pack(side="left", padx=(12, 0), fill="x", expand=True)
+            tk.Entry(row, textvariable=var, width=24).pack(
+                side="left", padx=(12, 0), fill="x", expand=True,
+            )
             tk.Checkbutton(row, text="Enabled", variable=enabled_var).pack(
                 side="left", padx=(12, 0),
             )
@@ -159,7 +197,7 @@ class SettingsDialog:
             wraplength=420,
         ).pack(anchor="w", pady=(10, 0))
 
-    def _build_interval_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
+    def _build_interval_tab(self, parent: tk.Frame, config: dict[str, Any]) -> None:
         container = tk.Frame(parent, padx=18, pady=18)
         container.pack(fill="both", expand=True)
 
@@ -239,7 +277,7 @@ class SettingsDialog:
             wraplength=420,
         ).pack(anchor="w", pady=(0, 0))
 
-    def _build_display_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
+    def _build_display_tab(self, parent: tk.Frame, config: dict[str, Any]) -> None:
         container = tk.Frame(parent, padx=18, pady=18)
         container.pack(fill="both", expand=True)
 
@@ -265,21 +303,6 @@ class SettingsDialog:
             length=280,
         ).pack(anchor="w")
         tk.Label(container, textvariable=self.opacity_label_var).pack(anchor="w", pady=(8, 0))
-
-    def _on_window_map(self, event: tk.Event) -> None:
-        if event.widget is not self.window:
-            return
-        if self.window is not None and self.window.winfo_exists():
-            self.window.after(50, self._refresh_layout)
-
-    def _on_tab_changed(self, _event: tk.Event) -> None:
-        if self.window is not None and self.window.winfo_exists():
-            self.window.after(10, self._refresh_layout)
-
-    def _refresh_layout(self) -> None:
-        if self.window is None or not self.window.winfo_exists():
-            return
-        self.window.update_idletasks()
 
     def _on_interval_change(self, value: str) -> None:
         if self.interval_label_var is None:
@@ -361,6 +384,8 @@ class SettingsDialog:
         if self.window is not None and self.window.winfo_exists():
             self.window.destroy()
         self.window = None
+        self._tab_frames = []
+        self._tab_buttons = []
 
     @staticmethod
     def _format_interval_label(seconds: int) -> str:
