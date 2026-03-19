@@ -127,52 +127,27 @@ class SettingsDialog:
             self.alarm_vars.append(var)
             self.alarm_enabled_vars.append(enabled_var)
             self.alarm_mode_vars.append(mode_var)
-            tk.Label(container, text=f"Alert {index} (USDT)").grid(
-                row=index - 1,
-                column=0,
-                sticky="w",
-                pady=6,
+
+            row = tk.Frame(container)
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=f"Alert {index} (USDT)", anchor="w", width=14).pack(
+                side="left",
             )
-            tk.Entry(container, textvariable=var, width=24).grid(
-                row=index - 1,
-                column=1,
-                sticky="ew",
-                padx=(12, 0),
-                pady=6,
-            )
-            tk.Checkbutton(
-                container,
-                text="Enabled",
-                variable=enabled_var,
-            ).grid(
-                row=index - 1,
-                column=2,
-                sticky="w",
-                padx=(12, 0),
-                pady=6,
+            entry = tk.Entry(row, textvariable=var, width=24)
+            entry.pack(side="left", padx=(12, 0), fill="x", expand=True)
+            tk.Checkbutton(row, text="Enabled", variable=enabled_var).pack(
+                side="left", padx=(12, 0),
             )
             ttk.Combobox(
-                container,
+                row,
                 textvariable=mode_var,
                 values=(self.POPUP_MODE_LABEL, self.NOTIFICATION_MODE_LABEL),
                 width=12,
                 state="readonly",
-            ).grid(
-                row=index - 1,
-                column=3,
-                sticky="w",
-                padx=(12, 0),
-                pady=6,
-            )
+            ).pack(side="left", padx=(12, 0))
 
-        container.grid_columnconfigure(1, weight=1)
-
-        ttk.Separator(container, orient="horizontal").grid(
-            row=self.ALARM_SLOT_COUNT,
-            column=0,
-            columnspan=4,
-            sticky="ew",
-            pady=(18, 18),
+        ttk.Separator(container, orient="horizontal").pack(
+            fill="x", pady=(18, 18),
         )
         tk.Label(
             container,
@@ -180,7 +155,7 @@ class SettingsDialog:
             fg="#666666",
             justify="left",
             wraplength=420,
-        ).grid(row=self.ALARM_SLOT_COUNT + 1, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        ).pack(anchor="w", pady=(10, 0))
 
     def _build_interval_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
         container = tk.Frame(parent, padx=18, pady=18)
