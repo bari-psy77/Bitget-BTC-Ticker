@@ -86,6 +86,9 @@ class SettingsDialog:
         self._build_interval_tab(interval_tab, config)
         self._build_display_tab(display_tab, config)
 
+        notebook.select(0)
+        self.window.update_idletasks()
+
         actions = tk.Frame(self.window, pady=10)
         actions.pack(fill="x")
         tk.Button(actions, text=self.SAVE_BUTTON_LABEL, width=12, command=self._save).pack(
@@ -101,8 +104,8 @@ class SettingsDialog:
         while len(alarms) < self.ALARM_SLOT_COUNT:
             alarms.append({"price": "", "enabled": True, "mode": "popup"})
 
-        container = tk.Frame(parent, padx=18, pady=18)
-        container.pack(fill="both", expand=True, anchor="nw")
+        container = tk.Frame(parent)
+        container.pack(fill="x", padx=18, pady=18)
 
         self.alarm_vars = []
         self.alarm_enabled_vars = []
