@@ -76,6 +76,11 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertLess(geometry[0]["wick_top"], geometry[0]["wick_bottom"])
         self.assertLess(geometry[0]["body_top"], geometry[0]["body_bottom"])
 
+    def test_resolve_canvas_dimension_uses_configured_size_when_widget_not_ready(self) -> None:
+        self.assertEqual(OverlayWindow.resolve_canvas_dimension(1, 298), 298)
+        self.assertEqual(OverlayWindow.resolve_canvas_dimension(0, 120), 120)
+        self.assertEqual(OverlayWindow.resolve_canvas_dimension(250, 298), 250)
+
 
 if __name__ == "__main__":
     unittest.main()

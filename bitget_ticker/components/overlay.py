@@ -461,9 +461,10 @@ class OverlayWindow:
         self._chart_title_label.config(text=f"BTCUSDT {market_label} {timeframe_label}")
 
         canvas = self._chart_canvas
+        self._chart_window.update_idletasks()
         canvas.delete("all")
-        width = int(canvas.winfo_width() or canvas.cget("width"))
-        height = int(canvas.winfo_height() or canvas.cget("height"))
+        width = self.resolve_canvas_dimension(canvas.winfo_width(), int(canvas.cget("width")))
+        height = self.resolve_canvas_dimension(canvas.winfo_height(), int(canvas.cget("height")))
 
         if len(self._chart_points) < 2:
             self._chart_detail_label.config(text="Waiting for candles...")
@@ -559,6 +560,12 @@ class OverlayWindow:
     def _cancel_chart_jobs(self) -> None:
         self._cancel_chart_hover_job()
         self._cancel_chart_hide_job()
+
+    @staticmethod
+    def resolve_canvas_dimension(measured: int, configured: int) -> int:
+        if measured <= 1:
+            return configured
+        return measured
 
     @staticmethod
     def build_notification_message(alarm_price: float, current_price: float) -> str:

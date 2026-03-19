@@ -12,6 +12,10 @@ class SettingsDialog:
     """Tabbed settings dialog for alarms, interval, and opacity."""
 
     ALARM_SLOT_COUNT = 6
+    WINDOW_WIDTH = 620
+    WINDOW_HEIGHT = 820
+    MIN_WINDOW_WIDTH = 580
+    MIN_WINDOW_HEIGHT = 620
     WINDOW_TITLE = "Settings - Bitget BTC Ticker"
     ALERTS_TAB_TITLE = "Price Alerts"
     INTERVAL_TAB_TITLE = "Refresh Interval"
@@ -62,8 +66,9 @@ class SettingsDialog:
 
         self.window = tk.Toplevel(self.root)
         self.window.title(self.WINDOW_TITLE)
-        self.window.geometry("560x760")
-        self.window.resizable(False, False)
+        self.window.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}")
+        self.window.minsize(self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
+        self.window.resizable(True, True)
         self.window.attributes("-topmost", True)
         self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
 
@@ -96,8 +101,27 @@ class SettingsDialog:
         while len(alarms) < self.ALARM_SLOT_COUNT:
             alarms.append({"price": "", "enabled": True, "mode": "popup"})
 
-        container = tk.Frame(parent, padx=18, pady=18)
-        container.pack(fill="both", expand=True)
+        outer = tk.Frame(parent)
+        outer.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(outer, highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        container = tk.Frame(canvas, padx=18, pady=18)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        window_id = canvas.create_window((0, 0), window=container, anchor="nw")
+        container.bind(
+            "<Configure>",
+            lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(window_id, width=event.width),
+        )
+        self._bind_mousewheel_scroll(canvas, container)
 
         self.alarm_vars = []
         self.alarm_enabled_vars = []
@@ -361,6 +385,16 @@ class SettingsDialog:
         if self.window is not None and self.window.winfo_exists():
             self.window.destroy()
         self.window = None
+
+    @staticmethod
+    def _bind_mousewheel_scroll(canvas: tk.Canvas, target: tk.Widget) -> None:
+        def _scroll(event: tk.Event) -> None:
+            if getattr(event, "delta", 0) == 0:
+                return
+            canvas.yview_scroll(-int(event.delta / 120), "units")
+
+        target.bind("<Enter>", lambda _event: canvas.bind_all("<MouseWheel>", _scroll), add="+")
+        target.bind("<Leave>", lambda _event: canvas.unbind_all("<MouseWheel>"), add="+")
 
     @staticmethod
     def _format_interval_label(seconds: int) -> str:
