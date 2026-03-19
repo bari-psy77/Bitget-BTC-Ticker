@@ -50,6 +50,7 @@ class SettingsDialog:
         self.config_getter = config_getter
         self.on_save = on_save
         self.window: tk.Toplevel | None = None
+        self._content_area: tk.Frame | None = None
         self.alarm_vars: list[tk.StringVar] = []
         self.alarm_enabled_vars: list[tk.BooleanVar] = []
         self.alarm_mode_vars: list[tk.StringVar] = []
@@ -66,7 +67,12 @@ class SettingsDialog:
 
     def show(self) -> None:
         logger.debug("show() called")
+
+        # If the window already exists (hidden), rebuild content and show it
         if self.window is not None and self.window.winfo_exists():
+            logger.debug("reusing existing window")
+            self._rebuild_content()
+            self.window.deiconify()
             self.window.lift()
             self.window.focus_force()
             return
@@ -108,25 +114,11 @@ class SettingsDialog:
             # --- Separator ---
             ttk.Separator(self.window, orient="horizontal").pack(fill="x", padx=12)
 
-            # --- Content area ---
-            content_area = tk.Frame(self.window)
-            content_area.pack(fill="both", expand=True, padx=12)
+            # --- Content area (persists across rebuilds) ---
+            self._content_area = tk.Frame(self.window)
+            self._content_area.pack(fill="both", expand=True, padx=12)
 
-            alarm_frame = tk.Frame(content_area)
-            interval_frame = tk.Frame(content_area)
-            display_frame = tk.Frame(content_area)
-            self._tab_frames = [alarm_frame, interval_frame, display_frame]
-            logger.debug("tab frames created")
-
-            self._build_alarm_tab(alarm_frame, config)
-            logger.debug("alarm tab built, alarm_vars=%d", len(self.alarm_vars))
-            self._build_interval_tab(interval_frame, config)
-            logger.debug("interval tab built")
-            self._build_display_tab(display_frame, config)
-            logger.debug("display tab built")
-
-            self._select_tab(0)
-            logger.debug("tab 0 selected")
+            self._build_all_tabs(config)
 
             # --- Action buttons ---
             actions = tk.Frame(self.window, pady=10)
@@ -138,9 +130,69 @@ class SettingsDialog:
             tk.Button(actions, text=self.CANCEL_BUTTON_LABEL, width=12, command=self._handle_close).pack(
                 side="right",
             )
-            logger.debug("show() complete")
+            logger.debug("show() complete (first create)")
+            self.window.after(200, self._debug_layout)
         except Exception:
             logger.exception("show() failed")
+
+    def _rebuild_content(self) -> None:
+        """Clear and rebuild tab content for an existing (hidden) window."""
+        logger.debug("_rebuild_content()")
+        try:
+            config = self.config_getter()
+            self._initial_opacity = int(float(config["opacity"]) * 100)
+
+            # Destroy old tab frames
+            for frame in self._tab_frames:
+                frame.destroy()
+            self._tab_frames = []
+
+            self._build_all_tabs(config)
+            logger.debug("_rebuild_content() complete")
+            if self.window is not None:
+                self.window.after(200, self._debug_layout)
+        except Exception:
+            logger.exception("_rebuild_content() failed")
+
+    def _build_all_tabs(self, config: dict[str, Any]) -> None:
+        """Build the three tab frames inside _content_area."""
+        if self._content_area is None:
+            return
+
+        alarm_frame = tk.Frame(self._content_area)
+        interval_frame = tk.Frame(self._content_area)
+        display_frame = tk.Frame(self._content_area)
+        self._tab_frames = [alarm_frame, interval_frame, display_frame]
+        logger.debug("tab frames created")
+
+        self._build_alarm_tab(alarm_frame, config)
+        logger.debug("alarm tab built, alarm_vars=%d", len(self.alarm_vars))
+        self._build_interval_tab(interval_frame, config)
+        logger.debug("interval tab built")
+        self._build_display_tab(display_frame, config)
+        logger.debug("display tab built")
+
+        self._select_tab(0)
+        logger.debug("tab 0 selected")
+
+    def _debug_layout(self) -> None:
+        if self.window is None or not self.window.winfo_exists():
+            return
+        try:
+            idx = self._active_tab
+            frame = self._tab_frames[idx] if self._tab_frames else None
+            content = self._content_area
+            logger.debug(
+                "LAYOUT window=%s content=[geo=%s mapped=%s] frame=[geo=%s mapped=%s children=%d]",
+                self.window.geometry(),
+                content.winfo_geometry() if content else "N/A",
+                content.winfo_ismapped() if content else "N/A",
+                frame.winfo_geometry() if frame else "N/A",
+                frame.winfo_ismapped() if frame else "N/A",
+                len(frame.winfo_children()) if frame else 0,
+            )
+        except Exception:
+            logger.exception("_debug_layout failed")
 
     def _select_tab(self, index: int) -> None:
         logger.debug("_select_tab(%d) frames=%d buttons=%d", index, len(self._tab_frames), len(self._tab_buttons))
@@ -371,7 +423,7 @@ class SettingsDialog:
             return
 
         self.on_save(saved_config)
-        self._destroy_window()
+        self._handle_close()
 
     def _parse_alarm_values(self) -> list[dict[str, object]]:
         alarms: list[dict[str, object]] = []
@@ -397,13 +449,17 @@ class SettingsDialog:
         return alarms
 
     def _handle_close(self) -> None:
+        logger.debug("_handle_close()")
         self.root.attributes("-alpha", self._initial_opacity / 100)
-        self._destroy_window()
+        # Hide instead of destroy — avoids Windows Toplevel re-creation rendering bug
+        if self.window is not None and self.window.winfo_exists():
+            self.window.withdraw()
 
     def _destroy_window(self) -> None:
         if self.window is not None and self.window.winfo_exists():
             self.window.destroy()
         self.window = None
+        self._content_area = None
         self._tab_frames = []
         self._tab_buttons = []
 
