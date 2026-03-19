@@ -18,6 +18,8 @@ class UiStringTests(unittest.TestCase):
         self.assertEqual(SettingsDialog.MARKET_TYPE_SPOT_LABEL, "Spot")
         self.assertEqual(SettingsDialog.POPUP_MODE_LABEL, "Popup")
         self.assertEqual(SettingsDialog.NOTIFICATION_MODE_LABEL, "Notification")
+        self.assertEqual(SettingsDialog.CHART_TIMEFRAME_5M_LABEL, "5 min")
+        self.assertEqual(SettingsDialog.CHART_TIMEFRAME_15M_LABEL, "15 min")
 
     def test_settings_dialog_alarm_slot_count_is_six(self) -> None:
         self.assertEqual(SettingsDialog.ALARM_SLOT_COUNT, 6)

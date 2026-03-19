@@ -11,6 +11,7 @@ class ConfigManager:
     DEFAULT_CONFIG: dict[str, Any] = {
         "interval_seconds": 300,
         "market_type": "futures",
+        "chart_timeframe": "15m",
         "alarms": [],
         "opacity": 0.85,
         "custom_position": None,
@@ -18,6 +19,7 @@ class ConfigManager:
     MIN_INTERVAL_SECONDS = 30
     MAX_INTERVAL_SECONDS = 1800
     MARKET_TYPE_OPTIONS = {"spot", "futures"}
+    CHART_TIMEFRAME_OPTIONS = {"5m", "15m"}
     ALARM_MODE_OPTIONS = {"popup", "notification"}
 
     def __init__(self, config_path: Path | None = None) -> None:
@@ -65,6 +67,7 @@ class ConfigManager:
 
         opacity = data.get("opacity", config["opacity"])
         market_type = data.get("market_type", config["market_type"])
+        chart_timeframe = data.get("chart_timeframe", config["chart_timeframe"])
         alarms = data.get("alarms", config["alarms"])
         legacy_alert_mode = data.get("alert_mode", "popup")
         custom_position = data.get("custom_position")
@@ -86,6 +89,8 @@ class ConfigManager:
 
         if market_type in self.MARKET_TYPE_OPTIONS:
             config["market_type"] = market_type
+        if chart_timeframe in self.CHART_TIMEFRAME_OPTIONS:
+            config["chart_timeframe"] = chart_timeframe
 
         parsed_alarms: list[dict[str, Any]] = []
         if isinstance(alarms, list):

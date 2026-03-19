@@ -23,6 +23,10 @@ class SettingsDialog:
     MARKET_TYPE_SPOT_LABEL = "Spot"
     POPUP_MODE_LABEL = "Popup"
     NOTIFICATION_MODE_LABEL = "Notification"
+    CHART_TIMEFRAME_TITLE = "Hover Chart Timeframe"
+    CHART_TIMEFRAME_5M_LABEL = "5 min"
+    CHART_TIMEFRAME_15M_LABEL = "15 min"
+    CHART_GUIDE_TEXT = "Hover over the overlay for 2 seconds to open the mini chart."
 
     def __init__(
         self,
@@ -40,6 +44,7 @@ class SettingsDialog:
         self.alarm_enabled_vars: list[tk.BooleanVar] = []
         self.alarm_mode_vars: list[tk.StringVar] = []
         self.market_type_var: tk.StringVar | None = None
+        self.chart_timeframe_var: tk.StringVar | None = None
         self.interval_var: tk.IntVar | None = None
         self.interval_label_var: tk.StringVar | None = None
         self.opacity_var: tk.IntVar | None = None
@@ -57,7 +62,7 @@ class SettingsDialog:
 
         self.window = tk.Toplevel(self.root)
         self.window.title(self.WINDOW_TITLE)
-        self.window.geometry("560x700")
+        self.window.geometry("560x760")
         self.window.resizable(False, False)
         self.window.attributes("-topmost", True)
         self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
@@ -174,6 +179,7 @@ class SettingsDialog:
         container.pack(fill="both", expand=True)
 
         self.market_type_var = tk.StringVar(value=str(config.get("market_type", "futures")))
+        self.chart_timeframe_var = tk.StringVar(value=str(config.get("chart_timeframe", "15m")))
 
         tk.Label(container, text="Market Type").pack(anchor="w")
         market_frame = tk.Frame(container)
@@ -221,6 +227,33 @@ class SettingsDialog:
             fg="#666666",
         ).pack(anchor="w", pady=(12, 0))
 
+        ttk.Separator(container, orient="horizontal").pack(fill="x", pady=(20, 18))
+
+        tk.Label(container, text=self.CHART_TIMEFRAME_TITLE).pack(anchor="w")
+        chart_frame = tk.Frame(container)
+        chart_frame.pack(anchor="w", pady=(10, 10))
+        tk.Radiobutton(
+            chart_frame,
+            text=self.CHART_TIMEFRAME_5M_LABEL,
+            variable=self.chart_timeframe_var,
+            value="5m",
+            anchor="w",
+        ).pack(side="left")
+        tk.Radiobutton(
+            chart_frame,
+            text=self.CHART_TIMEFRAME_15M_LABEL,
+            variable=self.chart_timeframe_var,
+            value="15m",
+            anchor="w",
+        ).pack(side="left", padx=(16, 0))
+        tk.Label(
+            container,
+            text=self.CHART_GUIDE_TEXT,
+            fg="#666666",
+            justify="left",
+            wraplength=420,
+        ).pack(anchor="w", pady=(0, 0))
+
     def _build_display_tab(self, parent: ttk.Frame, config: dict[str, Any]) -> None:
         container = tk.Frame(parent, padx=18, pady=18)
         container.pack(fill="both", expand=True)
@@ -266,13 +299,19 @@ class SettingsDialog:
             messagebox.showerror("Input Error", str(exc), parent=self.window)
             return
 
-        if self.interval_var is None or self.opacity_var is None or self.market_type_var is None:
+        if (
+            self.interval_var is None
+            or self.opacity_var is None
+            or self.market_type_var is None
+            or self.chart_timeframe_var is None
+        ):
             return
 
         current_config = self.config_getter()
         config = {
             "interval_seconds": int(self.interval_var.get()),
             "market_type": self.market_type_var.get(),
+            "chart_timeframe": self.chart_timeframe_var.get(),
             "alarms": alarms,
             "opacity": round(int(self.opacity_var.get()) / 100, 2),
             "custom_position": (

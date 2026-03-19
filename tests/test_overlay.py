@@ -33,6 +33,28 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(OverlayWindow.SETTINGS_MENU_LABEL, "Settings")
         self.assertEqual(OverlayWindow.QUIT_MENU_LABEL, "Quit")
 
+    def test_resolve_chart_position_prefers_above_overlay(self) -> None:
+        x, y = OverlayWindow.resolve_chart_position(
+            overlay_x=1200,
+            overlay_y=900,
+            screen_w=1920,
+            screen_h=1080,
+        )
+
+        self.assertEqual(x, 1200 + OverlayWindow.WIDTH - OverlayWindow.CHART_WIDTH)
+        self.assertEqual(y, 900 - OverlayWindow.CHART_HEIGHT - 12)
+
+    def test_resolve_chart_position_falls_back_below_when_needed(self) -> None:
+        x, y = OverlayWindow.resolve_chart_position(
+            overlay_x=20,
+            overlay_y=10,
+            screen_w=1280,
+            screen_h=720,
+        )
+
+        self.assertEqual(x, 0)
+        self.assertEqual(y, 10 + OverlayWindow.HEIGHT + 12)
+
 
 if __name__ == "__main__":
     unittest.main()

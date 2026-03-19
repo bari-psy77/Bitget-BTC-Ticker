@@ -22,6 +22,7 @@ class BitgetBTCTicker:
 
         self.running = True
         self.previous_price: float | None = None
+        self.chart_points: list[tuple[int, float]] = []
         self.update_thread: threading.Thread | None = None
         self._config_changed = threading.Event()
 
@@ -36,6 +37,11 @@ class BitgetBTCTicker:
 
         self.alarm_engine = AlarmEngine(on_alarm=self.on_alarm)
         self.overlay.attach_alarm_engine(self.alarm_engine, self._current_alarms)
+        self.overlay.update_chart_data(
+            candles=[],
+            timeframe=str(self.config.get("chart_timeframe", "15m")),
+            market_type=str(self.config.get("market_type", "futures")),
+        )
 
         self.settings_dialog = SettingsDialog(
             root=self.root,
@@ -81,6 +87,7 @@ class BitgetBTCTicker:
         self.config = {
             "interval_seconds": int(config["interval_seconds"]),
             "market_type": str(config.get("market_type", "futures")),
+            "chart_timeframe": str(config.get("chart_timeframe", "15m")),
             "alarms": self._copy_alarm_items(config.get("alarms")),
             "opacity": float(config["opacity"]),
             "custom_position": self._copy_custom_position(config.get("custom_position")),
@@ -88,6 +95,12 @@ class BitgetBTCTicker:
         self.price_fetcher.set_market_type(str(self.config["market_type"]))
         self.overlay.set_opacity(float(self.config["opacity"]))
         self.overlay.set_position(self._copy_custom_position(self.config.get("custom_position")))
+        self.chart_points = []
+        self.overlay.update_chart_data(
+            candles=[],
+            timeframe=str(self.config["chart_timeframe"]),
+            market_type=str(self.config["market_type"]),
+        )
         self.alarm_engine.reset()
         self._config_changed.set()
         self.fetch_price_async()
@@ -127,11 +140,29 @@ class BitgetBTCTicker:
             self.root.after(0, lambda: self.overlay.show_error("Error"))
             return
 
-        self.root.after(0, lambda: self._apply_price(price))
+        candles = self.price_fetcher.get_btc_candles(
+            timeframe=str(self.config.get("chart_timeframe", "15m"))
+        )
+
+        self.root.after(0, lambda: self._apply_market_snapshot(price, candles))
 
     def _apply_price(self, price: float) -> None:
         self.overlay.update_display(price, self.previous_price)
         self.previous_price = price
+
+    def _apply_market_snapshot(
+        self,
+        price: float,
+        candles: list[tuple[int, float]],
+    ) -> None:
+        self.overlay.update_display(price, self.previous_price)
+        self.previous_price = price
+        self.chart_points = [(int(ts), float(close)) for ts, close in candles]
+        self.overlay.update_chart_data(
+            candles=list(self.chart_points),
+            timeframe=str(self.config.get("chart_timeframe", "15m")),
+            market_type=str(self.config.get("market_type", "futures")),
+        )
 
     def _current_alarms(self) -> list[dict[str, object]]:
         return self._copy_alarm_items(self.config.get("alarms"))
@@ -140,6 +171,7 @@ class BitgetBTCTicker:
         return {
             "interval_seconds": int(self.config["interval_seconds"]),
             "market_type": str(self.config.get("market_type", "futures")),
+            "chart_timeframe": str(self.config.get("chart_timeframe", "15m")),
             "alarms": self._copy_alarm_items(self.config.get("alarms")),
             "opacity": float(self.config["opacity"]),
             "custom_position": self._copy_custom_position(self.config.get("custom_position")),
