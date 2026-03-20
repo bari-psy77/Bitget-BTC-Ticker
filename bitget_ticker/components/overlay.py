@@ -5,16 +5,16 @@ from collections.abc import Callable
 
 from bitget_ticker.components.alarm import AlarmEngine
 
-Candle = tuple[int, float, float, float, float]
+Candle = tuple[int, float, float, float, float, float]  # (ts, open, high, low, close, volume)
 
 
 class OverlayWindow:
     """Bottom overlay window for BTC price display."""
 
     WIDTH = 260
-    HEIGHT = 54
+    HEIGHT = 38
     CHART_WIDTH = 320
-    CHART_HEIGHT = 200
+    CHART_HEIGHT = 280
     CHART_GAP = 12
     SCREEN_MARGIN = 24
     CHART_HOVER_DELAY_MS = 2000
@@ -24,7 +24,8 @@ class OverlayWindow:
     SETTINGS_MENU_LABEL = "Settings"
     SHOW_HIDE_MENU_LABEL = "Show/Hide"
     QUIT_MENU_LABEL = "Quit"
-    VOLUME_COLOR = "#8b949e"
+    VOLUME_UP_COLOR = "#00d4aa40"
+    VOLUME_DOWN_COLOR = "#ff6b6b40"
     BACKGROUND = "#0d1117"
     CHART_BACKGROUND = "#161b22"
     CHART_BORDER = "#30363d"
@@ -62,7 +63,6 @@ class OverlayWindow:
         self._latest_price_text = "Loading..."
         self._latest_direction_text = "─"
         self._latest_color = self.FLAT_COLOR
-        self._latest_volume_text = ""
         self._notification_message: str | None = None
         self._notification_flash_on = False
         self._notification_flash_job: str | None = None
@@ -107,7 +107,7 @@ class OverlayWindow:
         self.root.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x}+{y}")
         self._reposition_chart()
 
-    def update_display(self, price: float, prev_price: float | None, volume: float = 0.0) -> None:
+    def update_display(self, price: float, prev_price: float | None) -> None:
         arrow = "─"
         color = self.FLAT_COLOR
         if prev_price is None:
@@ -122,7 +122,6 @@ class OverlayWindow:
         self._latest_price_text = f"${price:,.2f}"
         self._latest_direction_text = arrow
         self._latest_color = color
-        self._latest_volume_text = self._format_volume(volume) if volume > 0 else ""
         self._render_display()
 
         if self._alarm_engine is not None and self._alarms_provider is not None:
@@ -154,33 +153,25 @@ class OverlayWindow:
         timeframe: str,
         market_type: str,
     ) -> None:
-        self._chart_points = sorted(
-            [
-                (
-                    int(timestamp),
-                    float(open_price),
-                    float(high_price),
-                    float(low_price),
-                    float(close_price),
-                )
-                for timestamp, open_price, high_price, low_price, close_price in candles
-            ],
-            key=lambda item: item[0],
-        )
+        normalized: list[Candle] = []
+        for candle in candles:
+            if len(candle) >= 6:
+                ts, o, h, l, c, v = candle[0], candle[1], candle[2], candle[3], candle[4], candle[5]
+            else:
+                ts, o, h, l, c = candle[0], candle[1], candle[2], candle[3], candle[4]
+                v = 0.0
+            normalized.append((int(ts), float(o), float(h), float(l), float(c), float(v)))
+        self._chart_points = sorted(normalized, key=lambda item: item[0])
         self._chart_timeframe = "5m" if timeframe == "5m" else "15m"
         self._chart_market_type = "spot" if market_type == "spot" else "futures"
         self._render_chart()
 
     def _build_layout(self) -> None:
-        self.container = tk.Frame(self.root, bg=self.BACKGROUND, padx=10, pady=4)
+        self.container = tk.Frame(self.root, bg=self.BACKGROUND, padx=10, pady=6)
         self.container.pack(fill="both", expand=True)
 
-        # Top row: icon + price + direction
-        self._top_row = tk.Frame(self.container, bg=self.BACKGROUND)
-        self._top_row.pack(fill="x")
-
         self.icon_label = tk.Label(
-            self._top_row,
+            self.container,
             text="₿",
             bg=self.BACKGROUND,
             fg=self.ICON_COLOR,
@@ -189,7 +180,7 @@ class OverlayWindow:
         self.icon_label.pack(side="left")
 
         self.price_label = tk.Label(
-            self._top_row,
+            self.container,
             text="Loading...",
             bg=self.BACKGROUND,
             fg=self.FLAT_COLOR,
@@ -199,24 +190,13 @@ class OverlayWindow:
         self.price_label.pack(side="left")
 
         self.direction_label = tk.Label(
-            self._top_row,
+            self.container,
             text="─",
             bg=self.BACKGROUND,
             fg=self.FLAT_COLOR,
             font=("Segoe UI", 11, "bold"),
         )
         self.direction_label.pack(side="left")
-
-        # Bottom row: volume
-        self.volume_label = tk.Label(
-            self.container,
-            text="",
-            bg=self.BACKGROUND,
-            fg=self.VOLUME_COLOR,
-            font=("Consolas", 9),
-            anchor="e",
-        )
-        self.volume_label.pack(fill="x")
 
     def _create_context_menu(
         self,
@@ -274,11 +254,9 @@ class OverlayWindow:
         widgets = [
             self.root,
             self.container,
-            self._top_row,
             self.icon_label,
             self.price_label,
             self.direction_label,
-            self.volume_label,
         ]
         for widget in widgets:
             widget.bind("<Button-1>", self._start_drag)
@@ -317,14 +295,12 @@ class OverlayWindow:
             self.icon_label.config(text="!", fg=color)
             self.price_label.config(text=self._notification_message, fg=color)
             self.direction_label.config(text="", fg=color)
-            self.volume_label.config(text="", fg=color)
             return
 
         self._apply_display_theme(self.BACKGROUND)
         self.icon_label.config(text="₿", fg=self.ICON_COLOR)
         self.price_label.config(text=self._latest_price_text, fg=self._latest_color)
         self.direction_label.config(text=self._latest_direction_text, fg=self._latest_color)
-        self.volume_label.config(text=self._latest_volume_text, fg=self.VOLUME_COLOR)
 
     def _toggle_notification_flash(self) -> None:
         if self._notification_message is None:
@@ -505,9 +481,10 @@ class OverlayWindow:
             )
             return
 
-        lows = [low_price for _ts, _open, _high, low_price, _close in self._chart_points]
-        highs = [high_price for _ts, _open, high_price, _low, _close in self._chart_points]
-        closes = [close_price for _ts, _open, _high, _low, close_price in self._chart_points]
+        lows = [lp for _ts, _o, _h, lp, _c, _v in self._chart_points]
+        highs = [hp for _ts, _o, hp, _l, _c, _v in self._chart_points]
+        closes = [cp for _ts, _o, _h, _l, cp, _v in self._chart_points]
+        volumes = [v for _ts, _o, _h, _l, _c, v in self._chart_points]
         minimum = min(lows)
         maximum = max(highs)
         if minimum == maximum:
@@ -521,53 +498,86 @@ class OverlayWindow:
             )
         )
 
-        padding = 16
-        chart_width = max(1, width - padding * 2)
-        chart_height = max(1, height - padding * 2)
+        # Layout: price chart takes top 70%, volume bars take bottom 25%, 5% gap
+        left_pad = 56
+        right_pad = 12
+        top_pad = 12
+        bottom_pad = 8
+        gap = 8
+        total_chart_w = max(1, width - left_pad - right_pad)
+        price_area_h = int((height - top_pad - bottom_pad - gap) * 0.70)
+        vol_area_h = int((height - top_pad - bottom_pad - gap) * 0.25)
+        price_top = top_pad
+        price_bottom = price_top + price_area_h
+        vol_top = price_bottom + gap
+        vol_bottom = vol_top + vol_area_h
 
+        # Y-axis price labels
+        price_range = maximum - minimum
         for step in range(4):
-            y = padding + (chart_height * step / 3)
-            canvas.create_line(
-                padding,
-                y,
-                width - padding,
-                y,
-                fill=self.CHART_GRID_COLOR,
-                width=1,
+            ratio = step / 3
+            y = price_top + (price_area_h * ratio)
+            price_val = maximum - (price_range * ratio)
+            canvas.create_line(left_pad, y, width - right_pad, y, fill=self.CHART_GRID_COLOR, width=1)
+            canvas.create_text(
+                left_pad - 4, y, text=f"${price_val:,.0f}", anchor="e",
+                fill="#8b949e", font=("Consolas", 7),
             )
 
-        geometry = self.build_candle_geometry(
-            candles=self._chart_points,
-            width=width,
-            height=height,
-            padding=padding,
-        )
-        for item in geometry:
-            canvas.create_line(
-                item["center_x"],
-                item["wick_top"],
-                item["center_x"],
-                item["wick_bottom"],
-                fill=item["color"],
-                width=1,
-            )
+        # Separator between price and volume
+        canvas.create_line(left_pad, vol_top - gap // 2, width - right_pad, vol_top - gap // 2,
+                           fill=self.CHART_GRID_COLOR, width=1)
+
+        # Candle geometry
+        n = len(self._chart_points)
+        slot_width = total_chart_w / max(1, n)
+        body_width = max(4.0, min(12.0, slot_width * 0.6))
+
+        def price_to_y(price: float) -> float:
+            r = (price - minimum) / price_range
+            return price_bottom - (r * price_area_h)
+
+        max_vol = max(volumes) if volumes and max(volumes) > 0 else 1.0
+
+        for i, (_ts, open_p, high_p, low_p, close_p, vol) in enumerate(self._chart_points):
+            cx = left_pad + (slot_width * i) + (slot_width / 2)
+            color = self.UP_COLOR if close_p >= open_p else self.DOWN_COLOR
+
+            # Candle wick + body
+            canvas.create_line(cx, price_to_y(high_p), cx, price_to_y(low_p), fill=color, width=1)
+            oy = price_to_y(open_p)
+            cy = price_to_y(close_p)
+            bt = min(oy, cy)
+            bb = max(oy, cy)
+            if abs(bb - bt) < 2:
+                bb = bt + 2
             canvas.create_rectangle(
-                item["body_left"],
-                item["body_top"],
-                item["body_right"],
-                item["body_bottom"],
-                fill=item["color"],
-                outline=item["color"],
+                cx - body_width / 2, bt, cx + body_width / 2, bb,
+                fill=color, outline=color,
             )
+
+            # Volume bar
+            if max_vol > 0 and vol > 0:
+                vol_h = (vol / max_vol) * vol_area_h
+                vol_color = self.UP_COLOR if close_p >= open_p else self.DOWN_COLOR
+                canvas.create_rectangle(
+                    cx - body_width / 2, vol_bottom - vol_h,
+                    cx + body_width / 2, vol_bottom,
+                    fill=vol_color, outline=vol_color, stipple="gray50",
+                )
+
+        # Volume Y-axis label
+        canvas.create_text(
+            left_pad - 4, vol_top, text=f"{max_vol:,.0f}", anchor="e",
+            fill="#8b949e", font=("Consolas", 7),
+        )
 
     def _apply_display_theme(self, background: str) -> None:
         self.root.configure(bg=background)
         self.container.configure(bg=background)
-        self._top_row.configure(bg=background)
         self.icon_label.configure(bg=background)
         self.price_label.configure(bg=background)
         self.direction_label.configure(bg=background)
-        self.volume_label.configure(bg=background)
 
     def _cancel_chart_hover_job(self) -> None:
         if self._chart_hover_job is None:
@@ -612,8 +622,8 @@ class OverlayWindow:
         if len(candles) < 1:
             return []
 
-        lows = [low_price for _ts, _open, _high, low_price, _close in candles]
-        highs = [high_price for _ts, _open, high_price, _low, _close in candles]
+        lows = [c[3] for c in candles]
+        highs = [c[2] for c in candles]
         minimum = min(lows)
         maximum = max(highs)
         if minimum == maximum:
@@ -631,7 +641,8 @@ class OverlayWindow:
             return height - padding - (ratio * chart_height)
 
         geometry: list[dict[str, float | str]] = []
-        for index, (_timestamp, open_price, high_price, low_price, close_price) in enumerate(candles):
+        for index, candle in enumerate(candles):
+            _timestamp, open_price, high_price, low_price, close_price = candle[0], candle[1], candle[2], candle[3], candle[4]
             center_x = padding + (slot_width * index) + (slot_width / 2)
             open_y = price_to_y(open_price)
             close_y = price_to_y(close_price)
@@ -662,12 +673,6 @@ class OverlayWindow:
         else:
             self._hide_chart_panel()
             self.root.withdraw()
-
-    @staticmethod
-    def _format_volume(volume: float) -> str:
-        if volume >= 1000:
-            return f"Vol {volume:,.0f} BTC"
-        return f"Vol {volume:,.2f} BTC"
 
     @staticmethod
     def _format_alert_price(alarm_price: float) -> str:

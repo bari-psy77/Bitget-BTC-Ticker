@@ -9,7 +9,6 @@ from bitget_ticker.components.fetcher import (
     SPOT_CANDLES_URL,
     SPOT_TICKER_URL,
     PriceFetcher,
-    TickerData,
 )
 
 
@@ -19,7 +18,7 @@ class PriceFetcherTests(unittest.TestCase):
         response.raise_for_status.return_value = None
         response.json.return_value = {
             "code": "00000",
-            "data": [{"lastPr": "98500.12", "baseVol": "12345.67"}],
+            "data": [{"lastPr": "98500.12"}],
         }
         session = Mock()
         session.get.return_value = response
@@ -28,23 +27,6 @@ class PriceFetcherTests(unittest.TestCase):
 
         price = fetcher.get_btc_price()
         self.assertEqual(price, 98500.12)
-
-    def test_get_btc_ticker_returns_price_and_volume(self) -> None:
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.json.return_value = {
-            "code": "00000",
-            "data": [{"lastPr": "98500.12", "baseVol": "12345.67"}],
-        }
-        session = Mock()
-        session.get.return_value = response
-
-        fetcher = PriceFetcher(session=session)
-        ticker = fetcher.get_btc_ticker()
-
-        self.assertIsNotNone(ticker)
-        self.assertEqual(ticker[0], 98500.12)
-        self.assertEqual(ticker[1], 12345.67)
         session.get.assert_called_once_with(
             FUTURES_TICKER_URL,
             params={"symbol": "BTCUSDT", "productType": "USDT-FUTURES"},
@@ -90,8 +72,8 @@ class PriceFetcherTests(unittest.TestCase):
         response.json.return_value = {
             "code": "00000",
             "data": [
-                ["1710000000000", "90000", "90500", "89500", "90300", "0", "0"],
-                ["1710000900000", "90300", "91000", "90200", "90850", "0", "0"],
+                ["1710000000000", "90000", "90500", "89500", "90300", "1234.5", "0"],
+                ["1710000900000", "90300", "91000", "90200", "90850", "5678.9", "0"],
             ],
         }
         session = Mock()
@@ -104,8 +86,8 @@ class PriceFetcherTests(unittest.TestCase):
         self.assertEqual(
             candles,
             [
-                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
-                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
             ],
         )
         session.get.assert_called_once_with(
@@ -136,7 +118,7 @@ class PriceFetcherTests(unittest.TestCase):
 
         candles = fetcher.get_btc_candles("5m")
 
-        self.assertEqual(candles, [(1710000000000, 90000.0, 90500.0, 89500.0, 90300.0)])
+        self.assertEqual(candles, [(1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 0.0)])
         session.get.assert_called_once_with(
             SPOT_CANDLES_URL,
             params={

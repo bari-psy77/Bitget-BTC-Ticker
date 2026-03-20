@@ -6,7 +6,7 @@ from tkinter import messagebox
 
 from bitget_ticker.components.alarm import AlarmEngine
 from bitget_ticker.components.config import ConfigManager
-from bitget_ticker.components.fetcher import Candle, PriceFetcher
+from bitget_ticker.components.fetcher import PriceFetcher
 from bitget_ticker.components.overlay import OverlayWindow
 from bitget_ticker.components.settings import SettingsDialog
 from bitget_ticker.components.tray import TrayIcon
@@ -140,17 +140,16 @@ class BitgetBTCTicker:
         self.overlay.toggle_visibility()
 
     def _fetch_and_dispatch(self) -> None:
-        ticker = self.price_fetcher.get_btc_ticker()
-        if ticker is None:
+        price = self.price_fetcher.get_btc_price()
+        if price is None:
             self.root.after(0, lambda: self.overlay.show_error("Error"))
             return
 
-        price, volume = ticker
         candles = self.price_fetcher.get_btc_candles(
             timeframe=str(self.config.get("chart_timeframe", "15m"))
         )
 
-        self.root.after(0, lambda: self._apply_market_snapshot(price, volume, candles))
+        self.root.after(0, lambda: self._apply_market_snapshot(price, candles))
 
     def _apply_price(self, price: float) -> None:
         self.overlay.update_display(price, self.previous_price)
@@ -159,15 +158,11 @@ class BitgetBTCTicker:
     def _apply_market_snapshot(
         self,
         price: float,
-        volume: float,
-        candles: list[Candle],
+        candles: list[tuple],
     ) -> None:
-        self.overlay.update_display(price, self.previous_price, volume)
+        self.overlay.update_display(price, self.previous_price)
         self.previous_price = price
-        self.chart_points = [
-            (int(ts), float(open_price), float(high_price), float(low_price), float(close_price))
-            for ts, open_price, high_price, low_price, close_price in candles
-        ]
+        self.chart_points = list(candles)
         self.overlay.update_chart_data(
             candles=list(self.chart_points),
             timeframe=str(self.config.get("chart_timeframe", "15m")),

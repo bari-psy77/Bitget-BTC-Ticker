@@ -23,8 +23,7 @@ FUTURES_TIMEFRAME_GRANULARITY_MAP = {
     "5m": "5m",
     "15m": "15m",
 }
-Candle = tuple[int, float, float, float, float]
-TickerData = tuple[float, float]  # (price, volume_24h_base)
+Candle = tuple[int, float, float, float, float, float]  # (ts, open, high, low, close, volume)
 
 
 class PriceFetcher:
@@ -49,12 +48,6 @@ class PriceFetcher:
         self.market_type = self._normalize_market_type(market_type)
 
     def get_btc_price(self) -> float | None:
-        ticker = self.get_btc_ticker()
-        if ticker is None:
-            return None
-        return ticker[0]
-
-    def get_btc_ticker(self) -> TickerData | None:
         if self.session is None:
             return None
 
@@ -70,16 +63,7 @@ class PriceFetcher:
             if not data:
                 return None
 
-            price = float(data[0]["lastPr"])
-            volume = 0.0
-            for key in ("baseVol", "baseVolume"):
-                if key in data[0]:
-                    try:
-                        volume = float(data[0][key])
-                    except (TypeError, ValueError):
-                        pass
-                    break
-            return (price, volume)
+            return float(data[0]["lastPr"])
         except Exception:
             return None
 
@@ -108,6 +92,7 @@ class PriceFetcher:
                 if not isinstance(row, (list, tuple)) or len(row) < 5:
                     continue
                 try:
+                    volume = float(row[5]) if len(row) > 5 else 0.0
                     candles.append(
                         (
                             int(row[0]),
@@ -115,6 +100,7 @@ class PriceFetcher:
                             float(row[2]),
                             float(row[3]),
                             float(row[4]),
+                            volume,
                         )
                     )
                 except (TypeError, ValueError):

@@ -34,12 +34,6 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(OverlayWindow.SHOW_HIDE_MENU_LABEL, "Show/Hide")
         self.assertEqual(OverlayWindow.QUIT_MENU_LABEL, "Quit")
 
-    def test_format_volume_large(self) -> None:
-        self.assertEqual(OverlayWindow._format_volume(12345.0), "Vol 12,345 BTC")
-
-    def test_format_volume_small(self) -> None:
-        self.assertEqual(OverlayWindow._format_volume(0.53), "Vol 0.53 BTC")
-
     def test_resolve_chart_position_prefers_above_overlay(self) -> None:
         x, y = OverlayWindow.resolve_chart_position(
             overlay_x=1200,
@@ -70,8 +64,8 @@ class OverlayWindowPositionTests(unittest.TestCase):
     def test_build_candle_geometry_returns_body_and_wick(self) -> None:
         geometry = OverlayWindow.build_candle_geometry(
             candles=[
-                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
-                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1000.0),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 2000.0),
             ],
             width=280,
             height=120,
