@@ -9,14 +9,14 @@ from bitget_ticker.ticker import BitgetBTCTicker
 class _OverlayStub:
     def __init__(self) -> None:
         self.notifications: list[tuple[float, float]] = []
-        self.display_updates: list[tuple[float, float | None]] = []
+        self.display_updates: list[tuple[float, float | None, float]] = []
         self.chart_updates: list[tuple[list[tuple[int, float, float, float, float]], str, str]] = []
 
     def show_notification(self, alarm_price: float, current_price: float) -> None:
         self.notifications.append((alarm_price, current_price))
 
-    def update_display(self, price: float, previous_price: float | None) -> None:
-        self.display_updates.append((price, previous_price))
+    def update_display(self, price: float, previous_price: float | None, volume: float = 0.0) -> None:
+        self.display_updates.append((price, previous_price, volume))
 
     def update_chart_data(
         self,
@@ -51,13 +51,14 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
 
         app._apply_market_snapshot(
             91000.0,
+            5432.1,
             [
                 (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0),
                 (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0),
             ],
         )
 
-        self.assertEqual(app.overlay.display_updates, [(91000.0, 90000.0)])
+        self.assertEqual(app.overlay.display_updates, [(91000.0, 90000.0, 5432.1)])
         self.assertEqual(
             app.overlay.chart_updates,
             [

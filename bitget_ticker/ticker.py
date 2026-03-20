@@ -32,6 +32,7 @@ class BitgetBTCTicker:
             on_open_settings=self.open_settings,
             on_quit=self.quit_app,
             on_position_change=self.on_position_change,
+            on_toggle_visibility=self.toggle_visibility,
         )
         self.root = self.overlay.root
 
@@ -53,6 +54,7 @@ class BitgetBTCTicker:
             root=self.root,
             on_open_settings=self.open_settings,
             on_quit=self.quit_app,
+            on_toggle_visibility=self.toggle_visibility,
         )
 
     def run(self) -> None:
@@ -134,17 +136,21 @@ class BitgetBTCTicker:
         except OSError:
             return
 
+    def toggle_visibility(self) -> None:
+        self.overlay.toggle_visibility()
+
     def _fetch_and_dispatch(self) -> None:
-        price = self.price_fetcher.get_btc_price()
-        if price is None:
+        ticker = self.price_fetcher.get_btc_ticker()
+        if ticker is None:
             self.root.after(0, lambda: self.overlay.show_error("Error"))
             return
 
+        price, volume = ticker
         candles = self.price_fetcher.get_btc_candles(
             timeframe=str(self.config.get("chart_timeframe", "15m"))
         )
 
-        self.root.after(0, lambda: self._apply_market_snapshot(price, candles))
+        self.root.after(0, lambda: self._apply_market_snapshot(price, volume, candles))
 
     def _apply_price(self, price: float) -> None:
         self.overlay.update_display(price, self.previous_price)
@@ -153,9 +159,10 @@ class BitgetBTCTicker:
     def _apply_market_snapshot(
         self,
         price: float,
+        volume: float,
         candles: list[Candle],
     ) -> None:
-        self.overlay.update_display(price, self.previous_price)
+        self.overlay.update_display(price, self.previous_price, volume)
         self.previous_price = price
         self.chart_points = [
             (int(ts), float(open_price), float(high_price), float(low_price), float(close_price))

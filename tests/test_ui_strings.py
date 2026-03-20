@@ -26,6 +26,7 @@ class UiStringTests(unittest.TestCase):
 
     def test_tray_menu_labels_are_english(self) -> None:
         self.assertEqual(TrayIcon.SETTINGS_MENU_LABEL, "Settings")
+        self.assertEqual(TrayIcon.SHOW_HIDE_MENU_LABEL, "Show/Hide")
         self.assertEqual(TrayIcon.QUIT_MENU_LABEL, "Quit")
 
 

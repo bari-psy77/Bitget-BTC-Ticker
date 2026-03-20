@@ -24,6 +24,7 @@ FUTURES_TIMEFRAME_GRANULARITY_MAP = {
     "15m": "15m",
 }
 Candle = tuple[int, float, float, float, float]
+TickerData = tuple[float, float]  # (price, volume_24h_base)
 
 
 class PriceFetcher:
@@ -48,6 +49,12 @@ class PriceFetcher:
         self.market_type = self._normalize_market_type(market_type)
 
     def get_btc_price(self) -> float | None:
+        ticker = self.get_btc_ticker()
+        if ticker is None:
+            return None
+        return ticker[0]
+
+    def get_btc_ticker(self) -> TickerData | None:
         if self.session is None:
             return None
 
@@ -63,7 +70,16 @@ class PriceFetcher:
             if not data:
                 return None
 
-            return float(data[0]["lastPr"])
+            price = float(data[0]["lastPr"])
+            volume = 0.0
+            for key in ("baseVol", "baseVolume"):
+                if key in data[0]:
+                    try:
+                        volume = float(data[0][key])
+                    except (TypeError, ValueError):
+                        pass
+                    break
+            return (price, volume)
         except Exception:
             return None
 

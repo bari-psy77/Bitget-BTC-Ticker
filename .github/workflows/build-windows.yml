@@ -25,7 +25,7 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --name "Bitget-BTC-Ticker" bitget_ticker/main.py
+        pyinstaller --onefile --windowed --name "Bitget-BTC-Ticker" --icon "assets/icon.ico" --add-data "assets/icon.ico;assets" bitget_ticker/main.py
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4

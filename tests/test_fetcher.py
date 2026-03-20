@@ -9,6 +9,7 @@ from bitget_ticker.components.fetcher import (
     SPOT_CANDLES_URL,
     SPOT_TICKER_URL,
     PriceFetcher,
+    TickerData,
 )
 
 
@@ -18,7 +19,7 @@ class PriceFetcherTests(unittest.TestCase):
         response.raise_for_status.return_value = None
         response.json.return_value = {
             "code": "00000",
-            "data": [{"lastPr": "98500.12"}],
+            "data": [{"lastPr": "98500.12", "baseVol": "12345.67"}],
         }
         session = Mock()
         session.get.return_value = response
@@ -26,8 +27,24 @@ class PriceFetcherTests(unittest.TestCase):
         fetcher = PriceFetcher(session=session)
 
         price = fetcher.get_btc_price()
-
         self.assertEqual(price, 98500.12)
+
+    def test_get_btc_ticker_returns_price_and_volume(self) -> None:
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "code": "00000",
+            "data": [{"lastPr": "98500.12", "baseVol": "12345.67"}],
+        }
+        session = Mock()
+        session.get.return_value = response
+
+        fetcher = PriceFetcher(session=session)
+        ticker = fetcher.get_btc_ticker()
+
+        self.assertIsNotNone(ticker)
+        self.assertEqual(ticker[0], 98500.12)
+        self.assertEqual(ticker[1], 12345.67)
         session.get.assert_called_once_with(
             FUTURES_TICKER_URL,
             params={"symbol": "BTCUSDT", "productType": "USDT-FUTURES"},

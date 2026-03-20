@@ -12,7 +12,7 @@ class OverlayWindow:
     """Bottom overlay window for BTC price display."""
 
     WIDTH = 260
-    HEIGHT = 38
+    HEIGHT = 54
     CHART_WIDTH = 320
     CHART_HEIGHT = 200
     CHART_GAP = 12
@@ -22,7 +22,9 @@ class OverlayWindow:
     NOTIFICATION_DURATION_MS = 5000
     NOTIFICATION_FLASH_INTERVAL_MS = 400
     SETTINGS_MENU_LABEL = "Settings"
+    SHOW_HIDE_MENU_LABEL = "Show/Hide"
     QUIT_MENU_LABEL = "Quit"
+    VOLUME_COLOR = "#8b949e"
     BACKGROUND = "#0d1117"
     CHART_BACKGROUND = "#161b22"
     CHART_BORDER = "#30363d"
@@ -42,6 +44,7 @@ class OverlayWindow:
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
         on_position_change: Callable[[dict[str, int]], None] | None = None,
+        on_toggle_visibility: Callable[[], None] | None = None,
     ) -> None:
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -55,9 +58,11 @@ class OverlayWindow:
         self._on_position_change = on_position_change
         self._alarm_engine: AlarmEngine | None = None
         self._alarms_provider: Callable[[], list[dict[str, object]]] | None = None
+        self._on_toggle_visibility = on_toggle_visibility
         self._latest_price_text = "Loading..."
         self._latest_direction_text = "─"
         self._latest_color = self.FLAT_COLOR
+        self._latest_volume_text = ""
         self._notification_message: str | None = None
         self._notification_flash_on = False
         self._notification_flash_job: str | None = None
@@ -74,7 +79,7 @@ class OverlayWindow:
         self._overlay_hovering = False
         self._chart_hovering = False
         self._build_layout()
-        self._create_context_menu(on_open_settings, on_quit)
+        self._create_context_menu(on_open_settings, on_quit, on_toggle_visibility)
         self.set_position(custom_position)
         self._bind_interactions()
 
@@ -102,7 +107,7 @@ class OverlayWindow:
         self.root.geometry(f"{self.WIDTH}x{self.HEIGHT}+{x}+{y}")
         self._reposition_chart()
 
-    def update_display(self, price: float, prev_price: float | None) -> None:
+    def update_display(self, price: float, prev_price: float | None, volume: float = 0.0) -> None:
         arrow = "─"
         color = self.FLAT_COLOR
         if prev_price is None:
@@ -117,6 +122,7 @@ class OverlayWindow:
         self._latest_price_text = f"${price:,.2f}"
         self._latest_direction_text = arrow
         self._latest_color = color
+        self._latest_volume_text = self._format_volume(volume) if volume > 0 else ""
         self._render_display()
 
         if self._alarm_engine is not None and self._alarms_provider is not None:
@@ -166,11 +172,15 @@ class OverlayWindow:
         self._render_chart()
 
     def _build_layout(self) -> None:
-        self.container = tk.Frame(self.root, bg=self.BACKGROUND, padx=10, pady=6)
+        self.container = tk.Frame(self.root, bg=self.BACKGROUND, padx=10, pady=4)
         self.container.pack(fill="both", expand=True)
 
+        # Top row: icon + price + direction
+        self._top_row = tk.Frame(self.container, bg=self.BACKGROUND)
+        self._top_row.pack(fill="x")
+
         self.icon_label = tk.Label(
-            self.container,
+            self._top_row,
             text="₿",
             bg=self.BACKGROUND,
             fg=self.ICON_COLOR,
@@ -179,7 +189,7 @@ class OverlayWindow:
         self.icon_label.pack(side="left")
 
         self.price_label = tk.Label(
-            self.container,
+            self._top_row,
             text="Loading...",
             bg=self.BACKGROUND,
             fg=self.FLAT_COLOR,
@@ -189,7 +199,7 @@ class OverlayWindow:
         self.price_label.pack(side="left")
 
         self.direction_label = tk.Label(
-            self.container,
+            self._top_row,
             text="─",
             bg=self.BACKGROUND,
             fg=self.FLAT_COLOR,
@@ -197,13 +207,27 @@ class OverlayWindow:
         )
         self.direction_label.pack(side="left")
 
+        # Bottom row: volume
+        self.volume_label = tk.Label(
+            self.container,
+            text="",
+            bg=self.BACKGROUND,
+            fg=self.VOLUME_COLOR,
+            font=("Consolas", 9),
+            anchor="e",
+        )
+        self.volume_label.pack(fill="x")
+
     def _create_context_menu(
         self,
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
+        on_toggle_visibility: Callable[[], None] | None = None,
     ) -> None:
         self.context_menu = tk.Menu(self.root, tearoff=False)
         self.context_menu.add_command(label=self.SETTINGS_MENU_LABEL, command=on_open_settings)
+        if on_toggle_visibility is not None:
+            self.context_menu.add_command(label=self.SHOW_HIDE_MENU_LABEL, command=on_toggle_visibility)
         self.context_menu.add_separator()
         self.context_menu.add_command(label=self.QUIT_MENU_LABEL, command=on_quit)
 
@@ -250,9 +274,11 @@ class OverlayWindow:
         widgets = [
             self.root,
             self.container,
+            self._top_row,
             self.icon_label,
             self.price_label,
             self.direction_label,
+            self.volume_label,
         ]
         for widget in widgets:
             widget.bind("<Button-1>", self._start_drag)
@@ -291,12 +317,14 @@ class OverlayWindow:
             self.icon_label.config(text="!", fg=color)
             self.price_label.config(text=self._notification_message, fg=color)
             self.direction_label.config(text="", fg=color)
+            self.volume_label.config(text="", fg=color)
             return
 
         self._apply_display_theme(self.BACKGROUND)
         self.icon_label.config(text="₿", fg=self.ICON_COLOR)
         self.price_label.config(text=self._latest_price_text, fg=self._latest_color)
         self.direction_label.config(text=self._latest_direction_text, fg=self._latest_color)
+        self.volume_label.config(text=self._latest_volume_text, fg=self.VOLUME_COLOR)
 
     def _toggle_notification_flash(self) -> None:
         if self._notification_message is None:
@@ -535,9 +563,11 @@ class OverlayWindow:
     def _apply_display_theme(self, background: str) -> None:
         self.root.configure(bg=background)
         self.container.configure(bg=background)
+        self._top_row.configure(bg=background)
         self.icon_label.configure(bg=background)
         self.price_label.configure(bg=background)
         self.direction_label.configure(bg=background)
+        self.volume_label.configure(bg=background)
 
     def _cancel_chart_hover_job(self) -> None:
         if self._chart_hover_job is None:
@@ -625,6 +655,19 @@ class OverlayWindow:
                 }
             )
         return geometry
+
+    def toggle_visibility(self) -> None:
+        if self.root.state() == "withdrawn":
+            self.root.deiconify()
+        else:
+            self._hide_chart_panel()
+            self.root.withdraw()
+
+    @staticmethod
+    def _format_volume(volume: float) -> str:
+        if volume >= 1000:
+            return f"Vol {volume:,.0f} BTC"
+        return f"Vol {volume:,.2f} BTC"
 
     @staticmethod
     def _format_alert_price(alarm_price: float) -> str:

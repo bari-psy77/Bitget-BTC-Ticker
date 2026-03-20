@@ -31,7 +31,14 @@ class OverlayWindowPositionTests(unittest.TestCase):
 
     def test_context_menu_labels_are_english(self) -> None:
         self.assertEqual(OverlayWindow.SETTINGS_MENU_LABEL, "Settings")
+        self.assertEqual(OverlayWindow.SHOW_HIDE_MENU_LABEL, "Show/Hide")
         self.assertEqual(OverlayWindow.QUIT_MENU_LABEL, "Quit")
+
+    def test_format_volume_large(self) -> None:
+        self.assertEqual(OverlayWindow._format_volume(12345.0), "Vol 12,345 BTC")
+
+    def test_format_volume_small(self) -> None:
+        self.assertEqual(OverlayWindow._format_volume(0.53), "Vol 0.53 BTC")
 
     def test_resolve_chart_position_prefers_above_overlay(self) -> None:
         x, y = OverlayWindow.resolve_chart_position(
