@@ -10,22 +10,13 @@ def create_icon(size: int = 256) -> Image.Image:
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
 
-    # Orange circle — with margin so it doesn't bleed to edges
-    margin = int(size * 0.06)
-    draw.ellipse(
-        [margin, margin, size - margin, size - margin],
-        fill=(247, 147, 26, 255),
-    )
-
-    # Use a bold font for clean "B" rendering; prefer Bold variants
-    font_size = int(size * 0.48)
+    font_size = int(size * 0.85)
     font = None
     for face in (
         "DejaVuSans-Bold.ttf",
-        "DejaVuSans.ttf",
         "LiberationSans-Bold.ttf",
+        "DejaVuSans.ttf",
         "arial.ttf",
-        "segoeui.ttf",
     ):
         try:
             candidate = ImageFont.truetype(face, font_size)
@@ -39,24 +30,12 @@ def create_icon(size: int = 256) -> Image.Image:
     if font is None:
         font = ImageFont.load_default()
 
-    symbol = "B"
-
-    # Center the symbol
-    bbox = draw.textbbox((0, 0), symbol, font=font)
+    bbox = draw.textbbox((0, 0), "B", font=font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
     x = (size - text_w) // 2 - bbox[0]
     y = (size - text_h) // 2 - bbox[1]
-    draw.text((x, y), symbol, fill=(13, 17, 23, 255), font=font)
-
-    # Classic Bitcoin vertical serifs (two short horizontal bars top & bottom)
-    lw = max(2, size // 32)
-    cx = size // 2
-    serif_half = int(size * 0.12)
-    top_y = int(size * 0.20)
-    bot_y = int(size * 0.80)
-    draw.line((cx - serif_half, top_y, cx + serif_half, top_y), fill=(13, 17, 23, 255), width=lw)
-    draw.line((cx - serif_half, bot_y, cx + serif_half, bot_y), fill=(13, 17, 23, 255), width=lw)
+    draw.text((x, y), "B", fill=(247, 147, 26, 255), font=font)
 
     return image
 
