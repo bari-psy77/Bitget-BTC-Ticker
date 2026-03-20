@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import messagebox, ttk
 from typing import Any
 
 from bitget_ticker.components.config import ConfigManager
-
-logger = logging.getLogger("bitget_ticker.settings")
 
 
 class SettingsDialog:
@@ -66,98 +63,79 @@ class SettingsDialog:
         self._active_tab = 0
 
     def show(self) -> None:
-        logger.debug("show() called")
-
         # If the window already exists (hidden), rebuild content and show it
         if self.window is not None and self.window.winfo_exists():
-            logger.debug("reusing existing window")
             self._rebuild_content()
             self.window.deiconify()
             self.window.lift()
             self.window.focus_force()
             return
 
-        try:
-            config = self.config_getter()
-            logger.debug("config loaded: alarms=%d", len(config.get("alarms", [])))
-            self._initial_opacity = int(float(config["opacity"]) * 100)
+        config = self.config_getter()
+        self._initial_opacity = int(float(config["opacity"]) * 100)
 
-            self.window = tk.Toplevel(self.root)
-            self.window.withdraw()  # hide until fully built
-            self.window.title(self.WINDOW_TITLE)
-            self.window.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}")
-            self.window.minsize(self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
-            self.window.resizable(True, True)
-            self.window.attributes("-topmost", True)
-            self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
-            logger.debug("window created (hidden)")
+        self.window = tk.Toplevel(self.root)
+        self.window.withdraw()  # hide until fully built
+        self.window.title(self.WINDOW_TITLE)
+        self.window.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}")
+        self.window.minsize(self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
+        self.window.resizable(True, True)
+        self.window.attributes("-topmost", True)
+        self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
 
-            # --- Tab bar ---
-            tab_bar = tk.Frame(self.window, bg=self.TAB_INACTIVE_BG)
-            tab_bar.pack(fill="x", padx=12, pady=(12, 0))
+        # --- Tab bar ---
+        tab_bar = tk.Frame(self.window, bg=self.TAB_INACTIVE_BG)
+        tab_bar.pack(fill="x", padx=12, pady=(12, 0))
 
-            titles = [self.ALERTS_TAB_TITLE, self.INTERVAL_TAB_TITLE, self.DISPLAY_TAB_TITLE]
-            self._tab_buttons = []
-            for i, title in enumerate(titles):
-                btn = tk.Label(
-                    tab_bar,
-                    text=title,
-                    padx=14,
-                    pady=6,
-                    cursor="hand2",
-                    bg=self.TAB_INACTIVE_BG,
-                )
-                btn.pack(side="left")
-                btn.bind("<Button-1>", lambda e, idx=i: self._select_tab(idx))
-                self._tab_buttons.append(btn)
-            logger.debug("tab buttons created: %d", len(self._tab_buttons))
-
-            # --- Separator ---
-            ttk.Separator(self.window, orient="horizontal").pack(fill="x", padx=12)
-
-            # --- Content area (persists across rebuilds) ---
-            self._content_area = tk.Frame(self.window)
-            self._content_area.pack(fill="both", expand=True, padx=12)
-
-            self._build_all_tabs(config)
-
-            # --- Action buttons ---
-            actions = tk.Frame(self.window, pady=10)
-            actions.pack(fill="x")
-            tk.Button(actions, text=self.SAVE_BUTTON_LABEL, width=12, command=self._save).pack(
-                side="right",
-                padx=12,
+        titles = [self.ALERTS_TAB_TITLE, self.INTERVAL_TAB_TITLE, self.DISPLAY_TAB_TITLE]
+        self._tab_buttons = []
+        for i, title in enumerate(titles):
+            btn = tk.Label(
+                tab_bar,
+                text=title,
+                padx=14,
+                pady=6,
+                cursor="hand2",
+                bg=self.TAB_INACTIVE_BG,
             )
-            tk.Button(actions, text=self.CANCEL_BUTTON_LABEL, width=12, command=self._handle_close).pack(
-                side="right",
-            )
-            # Show the fully-built window
-            self.window.deiconify()
-            self.window.lift()
-            self.window.focus_force()
-            logger.debug("show() complete (first create)")
-            self.window.after(200, self._debug_layout)
-        except Exception:
-            logger.exception("show() failed")
+            btn.pack(side="left")
+            btn.bind("<Button-1>", lambda e, idx=i: self._select_tab(idx))
+            self._tab_buttons.append(btn)
+
+        # --- Separator ---
+        ttk.Separator(self.window, orient="horizontal").pack(fill="x", padx=12)
+
+        # --- Content area (persists across rebuilds) ---
+        self._content_area = tk.Frame(self.window)
+        self._content_area.pack(fill="both", expand=True, padx=12)
+
+        self._build_all_tabs(config)
+
+        # --- Action buttons ---
+        actions = tk.Frame(self.window, pady=10)
+        actions.pack(fill="x")
+        tk.Button(actions, text=self.SAVE_BUTTON_LABEL, width=12, command=self._save).pack(
+            side="right",
+            padx=12,
+        )
+        tk.Button(actions, text=self.CANCEL_BUTTON_LABEL, width=12, command=self._handle_close).pack(
+            side="right",
+        )
+        # Show the fully-built window
+        self.window.deiconify()
+        self.window.lift()
+        self.window.focus_force()
 
     def _rebuild_content(self) -> None:
         """Clear and rebuild tab content for an existing (hidden) window."""
-        logger.debug("_rebuild_content()")
-        try:
-            config = self.config_getter()
-            self._initial_opacity = int(float(config["opacity"]) * 100)
+        config = self.config_getter()
+        self._initial_opacity = int(float(config["opacity"]) * 100)
 
-            # Destroy old tab frames
-            for frame in self._tab_frames:
-                frame.destroy()
-            self._tab_frames = []
+        for frame in self._tab_frames:
+            frame.destroy()
+        self._tab_frames = []
 
-            self._build_all_tabs(config)
-            logger.debug("_rebuild_content() complete")
-            if self.window is not None:
-                self.window.after(200, self._debug_layout)
-        except Exception:
-            logger.exception("_rebuild_content() failed")
+        self._build_all_tabs(config)
 
     def _build_all_tabs(self, config: dict[str, Any]) -> None:
         """Build the three tab frames inside _content_area."""
@@ -168,52 +146,23 @@ class SettingsDialog:
         interval_frame = tk.Frame(self._content_area)
         display_frame = tk.Frame(self._content_area)
         self._tab_frames = [alarm_frame, interval_frame, display_frame]
-        logger.debug("tab frames created")
 
         self._build_alarm_tab(alarm_frame, config)
-        logger.debug("alarm tab built, alarm_vars=%d", len(self.alarm_vars))
         self._build_interval_tab(interval_frame, config)
-        logger.debug("interval tab built")
         self._build_display_tab(display_frame, config)
-        logger.debug("display tab built")
 
         self._select_tab(0)
-        logger.debug("tab 0 selected")
-
-    def _debug_layout(self) -> None:
-        if self.window is None or not self.window.winfo_exists():
-            return
-        try:
-            idx = self._active_tab
-            frame = self._tab_frames[idx] if self._tab_frames else None
-            content = self._content_area
-            logger.debug(
-                "LAYOUT window=%s content=[geo=%s mapped=%s] frame=[geo=%s mapped=%s children=%d]",
-                self.window.geometry(),
-                content.winfo_geometry() if content else "N/A",
-                content.winfo_ismapped() if content else "N/A",
-                frame.winfo_geometry() if frame else "N/A",
-                frame.winfo_ismapped() if frame else "N/A",
-                len(frame.winfo_children()) if frame else 0,
-            )
-        except Exception:
-            logger.exception("_debug_layout failed")
 
     def _select_tab(self, index: int) -> None:
-        logger.debug("_select_tab(%d) frames=%d buttons=%d", index, len(self._tab_frames), len(self._tab_buttons))
-        try:
-            self._active_tab = index
-            for frame in self._tab_frames:
-                frame.pack_forget()
-            self._tab_frames[index].pack(fill="both", expand=True)
-            for i, btn in enumerate(self._tab_buttons):
-                if i == index:
-                    btn.config(bg=self.TAB_ACTIVE_BG, font=("TkDefaultFont", 9, "bold"))
-                else:
-                    btn.config(bg=self.TAB_INACTIVE_BG, font=("TkDefaultFont", 9))
-            logger.debug("_select_tab(%d) done, frame packed", index)
-        except Exception:
-            logger.exception("_select_tab(%d) failed", index)
+        self._active_tab = index
+        for frame in self._tab_frames:
+            frame.pack_forget()
+        self._tab_frames[index].pack(fill="both", expand=True)
+        for i, btn in enumerate(self._tab_buttons):
+            if i == index:
+                btn.config(bg=self.TAB_ACTIVE_BG, font=("TkDefaultFont", 9, "bold"))
+            else:
+                btn.config(bg=self.TAB_INACTIVE_BG, font=("TkDefaultFont", 9))
 
     def _build_alarm_tab(self, parent: tk.Frame, config: dict[str, Any]) -> None:
         alarms = list(config.get("alarms", []))[: self.ALARM_SLOT_COUNT]
@@ -454,7 +403,6 @@ class SettingsDialog:
         return alarms
 
     def _handle_close(self) -> None:
-        logger.debug("_handle_close()")
         self.root.attributes("-alpha", self._initial_opacity / 100)
         # Hide instead of destroy — avoids Windows Toplevel re-creation rendering bug
         if self.window is not None and self.window.winfo_exists():

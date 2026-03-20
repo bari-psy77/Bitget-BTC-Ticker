@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import logging
 import threading
 import time
 from tkinter import messagebox
-
-logger = logging.getLogger("bitget_ticker.ticker")
 
 from bitget_ticker.components.alarm import AlarmEngine
 from bitget_ticker.components.config import ConfigManager
@@ -109,7 +106,6 @@ class BitgetBTCTicker:
         self.fetch_price_async()
 
     def open_settings(self) -> None:
-        logger.debug("open_settings called")
         self.settings_dialog.show()
 
     def quit_app(self) -> None:
@@ -228,9 +224,7 @@ class BitgetBTCTicker:
 
 
 def main() -> None:
-    logger.info("BitgetBTCTicker initializing")
     app = BitgetBTCTicker()
-    logger.info("BitgetBTCTicker running")
     app.run()
 
 
