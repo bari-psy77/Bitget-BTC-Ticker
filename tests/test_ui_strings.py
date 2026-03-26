@@ -20,6 +20,8 @@ class UiStringTests(unittest.TestCase):
         self.assertEqual(SettingsDialog.NOTIFICATION_MODE_LABEL, "Notification")
         self.assertEqual(SettingsDialog.CHART_TIMEFRAME_5M_LABEL, "5 min")
         self.assertEqual(SettingsDialog.CHART_TIMEFRAME_15M_LABEL, "15 min")
+        self.assertEqual(SettingsDialog.CHART_TIMEFRAME_1H_LABEL, "1 hour")
+        self.assertEqual(SettingsDialog.CHART_TIMEFRAME_4H_LABEL, "4 hour")
 
     def test_settings_dialog_alarm_slot_count_is_six(self) -> None:
         self.assertEqual(SettingsDialog.ALARM_SLOT_COUNT, 6)

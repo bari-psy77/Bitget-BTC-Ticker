@@ -19,6 +19,8 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(config["interval_seconds"], 300)
             self.assertEqual(config["market_type"], "futures")
             self.assertEqual(config["chart_timeframe"], "15m")
+            self.assertFalse(config["chart_always_visible"])
+            self.assertTrue(config["chart_hover_enabled"])
             self.assertEqual(config["alarms"], [])
             self.assertEqual(config["opacity"], 0.85)
             self.assertIsNone(config["custom_position"])
@@ -38,6 +40,8 @@ class ConfigManagerTests(unittest.TestCase):
                 ],
                 "market_type": "spot",
                 "chart_timeframe": "5m",
+                "chart_always_visible": True,
+                "chart_hover_enabled": False,
                 "opacity": 0.65,
                 "custom_position": {"x": 120, "y": 80},
                 "alarm_states": {"95000.0": "above"},
@@ -57,6 +61,8 @@ class ConfigManagerTests(unittest.TestCase):
             )
             self.assertEqual(saved["market_type"], "spot")
             self.assertEqual(saved["chart_timeframe"], "5m")
+            self.assertTrue(saved["chart_always_visible"])
+            self.assertFalse(saved["chart_hover_enabled"])
             self.assertEqual(saved["opacity"], 0.65)
             self.assertEqual(saved["custom_position"], {"x": 120, "y": 80})
             self.assertNotIn("position", saved)
@@ -76,6 +82,8 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(config["interval_seconds"], 900)
             self.assertEqual(config["market_type"], "futures")
             self.assertEqual(config["chart_timeframe"], "15m")
+            self.assertFalse(config["chart_always_visible"])
+            self.assertTrue(config["chart_hover_enabled"])
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
             self.assertNotIn("alert_mode", config)
@@ -97,7 +105,7 @@ class ConfigManagerTests(unittest.TestCase):
             manager = ConfigManager(config_path=config_path)
             config = manager.load()
 
-            self.assertEqual(config["interval_seconds"], 30)
+            self.assertEqual(config["interval_seconds"], 10)
             self.assertEqual(
                 config["alarms"],
                 [],
@@ -125,6 +133,8 @@ class ConfigManagerTests(unittest.TestCase):
 
             self.assertEqual(config["opacity"], 0.7)
             self.assertEqual(config["chart_timeframe"], "15m")
+            self.assertFalse(config["chart_always_visible"])
+            self.assertTrue(config["chart_hover_enabled"])
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
 
@@ -155,6 +165,28 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(config["market_type"], "futures")
             self.assertEqual(config["chart_timeframe"], "15m")
             self.assertNotIn("alert_mode", config)
+
+    def test_load_accepts_extended_chart_timeframes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "chart_timeframe": "4h",
+                        "chart_always_visible": 1,
+                        "chart_hover_enabled": 0,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            manager = ConfigManager(config_path=config_path)
+            config = manager.load()
+
+            self.assertEqual(config["chart_timeframe"], "4h")
+            self.assertTrue(config["chart_always_visible"])
+            self.assertFalse(config["chart_hover_enabled"])
 
     def test_load_normalizes_chart_timeframe(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

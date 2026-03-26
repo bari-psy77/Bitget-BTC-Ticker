@@ -12,14 +12,16 @@ class ConfigManager:
         "interval_seconds": 300,
         "market_type": "futures",
         "chart_timeframe": "15m",
+        "chart_always_visible": False,
+        "chart_hover_enabled": True,
         "alarms": [],
         "opacity": 0.85,
         "custom_position": None,
     }
-    MIN_INTERVAL_SECONDS = 30
+    MIN_INTERVAL_SECONDS = 10
     MAX_INTERVAL_SECONDS = 1800
     MARKET_TYPE_OPTIONS = {"spot", "futures"}
-    CHART_TIMEFRAME_OPTIONS = {"5m", "15m"}
+    CHART_TIMEFRAME_OPTIONS = {"5m", "15m", "1h", "4h"}
     ALARM_MODE_OPTIONS = {"popup", "notification"}
 
     def __init__(self, config_path: Path | None = None) -> None:
@@ -68,6 +70,8 @@ class ConfigManager:
         opacity = data.get("opacity", config["opacity"])
         market_type = data.get("market_type", config["market_type"])
         chart_timeframe = data.get("chart_timeframe", config["chart_timeframe"])
+        chart_always_visible = data.get("chart_always_visible", config["chart_always_visible"])
+        chart_hover_enabled = data.get("chart_hover_enabled", config["chart_hover_enabled"])
         alarms = data.get("alarms", config["alarms"])
         legacy_alert_mode = data.get("alert_mode", "popup")
         custom_position = data.get("custom_position")
@@ -91,6 +95,8 @@ class ConfigManager:
             config["market_type"] = market_type
         if chart_timeframe in self.CHART_TIMEFRAME_OPTIONS:
             config["chart_timeframe"] = chart_timeframe
+        config["chart_always_visible"] = bool(chart_always_visible)
+        config["chart_hover_enabled"] = bool(chart_hover_enabled)
 
         parsed_alarms: list[dict[str, Any]] = []
         if isinstance(alarms, list):

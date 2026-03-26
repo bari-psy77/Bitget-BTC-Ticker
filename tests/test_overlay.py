@@ -32,6 +32,8 @@ class OverlayWindowPositionTests(unittest.TestCase):
     def test_context_menu_labels_are_english(self) -> None:
         self.assertEqual(OverlayWindow.SETTINGS_MENU_LABEL, "Settings")
         self.assertEqual(OverlayWindow.SHOW_HIDE_MENU_LABEL, "Show/Hide")
+        self.assertEqual(OverlayWindow.CHART_ALWAYS_VISIBLE_MENU_LABEL, "Always Show Chart")
+        self.assertEqual(OverlayWindow.CHART_HOVER_ENABLED_MENU_LABEL, "Hover Chart")
         self.assertEqual(OverlayWindow.QUIT_MENU_LABEL, "Quit")
 
     def test_resolve_chart_position_prefers_above_overlay(self) -> None:
@@ -81,6 +83,12 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(1, 298), 298)
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(0, 120), 120)
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(250, 298), 250)
+
+    def test_format_chart_timeframe_label_supports_extended_options(self) -> None:
+        self.assertEqual(OverlayWindow._format_chart_timeframe_label("5m"), "5 min")
+        self.assertEqual(OverlayWindow._format_chart_timeframe_label("15m"), "15 min")
+        self.assertEqual(OverlayWindow._format_chart_timeframe_label("1h"), "1 hour")
+        self.assertEqual(OverlayWindow._format_chart_timeframe_label("4h"), "4 hour")
 
 
 if __name__ == "__main__":

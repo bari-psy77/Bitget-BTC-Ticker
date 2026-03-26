@@ -12,6 +12,9 @@ class SettingsDialog:
     """Tabbed settings dialog for alarms, interval, and opacity."""
 
     ALARM_SLOT_COUNT = 6
+    MIN_INTERVAL_SECONDS = 10
+    MAX_INTERVAL_SECONDS = 1800
+    INTERVAL_STEP_SECONDS = 10
     WINDOW_WIDTH = 620
     WINDOW_HEIGHT = 820
     MIN_WINDOW_WIDTH = 580
@@ -30,6 +33,8 @@ class SettingsDialog:
     CHART_TIMEFRAME_TITLE = "Hover Chart Timeframe"
     CHART_TIMEFRAME_5M_LABEL = "5 min"
     CHART_TIMEFRAME_15M_LABEL = "15 min"
+    CHART_TIMEFRAME_1H_LABEL = "1 hour"
+    CHART_TIMEFRAME_4H_LABEL = "4 hour"
     CHART_GUIDE_TEXT = "Hover over the overlay for 2 seconds to open the mini chart."
 
     TAB_ACTIVE_BG = "#ffffff"
@@ -41,11 +46,13 @@ class SettingsDialog:
         config_manager: ConfigManager,
         config_getter: Callable[[], dict[str, Any]],
         on_save: Callable[[dict[str, Any]], None],
+        on_preview_opacity: Callable[[float], None],
     ) -> None:
         self.root = root
         self.config_manager = config_manager
         self.config_getter = config_getter
         self.on_save = on_save
+        self.on_preview_opacity = on_preview_opacity
         self.window: tk.Toplevel | None = None
         self._content_area: tk.Frame | None = None
         self.alarm_vars: list[tk.StringVar] = []
@@ -257,9 +264,9 @@ class SettingsDialog:
         tk.Label(container, text="Refresh Interval").pack(anchor="w")
         tk.Scale(
             container,
-            from_=30,
-            to=1800,
-            resolution=30,
+            from_=self.MIN_INTERVAL_SECONDS,
+            to=self.MAX_INTERVAL_SECONDS,
+            resolution=self.INTERVAL_STEP_SECONDS,
             orient="horizontal",
             variable=self.interval_var,
             command=self._on_interval_change,
@@ -272,7 +279,7 @@ class SettingsDialog:
         )
         tk.Label(
             container,
-            text="Adjust between 30 seconds and 30 minutes in 30-second steps.",
+            text="Adjust between 10 seconds and 30 minutes in 10-second steps.",
             fg="#666666",
         ).pack(anchor="w", pady=(12, 0))
 
@@ -293,6 +300,20 @@ class SettingsDialog:
             text=self.CHART_TIMEFRAME_15M_LABEL,
             variable=self.chart_timeframe_var,
             value="15m",
+            anchor="w",
+        ).pack(side="left", padx=(16, 0))
+        tk.Radiobutton(
+            chart_frame,
+            text=self.CHART_TIMEFRAME_1H_LABEL,
+            variable=self.chart_timeframe_var,
+            value="1h",
+            anchor="w",
+        ).pack(side="left", padx=(16, 0))
+        tk.Radiobutton(
+            chart_frame,
+            text=self.CHART_TIMEFRAME_4H_LABEL,
+            variable=self.chart_timeframe_var,
+            value="4h",
             anchor="w",
         ).pack(side="left", padx=(16, 0))
         tk.Label(
@@ -339,7 +360,7 @@ class SettingsDialog:
         percent = int(float(value))
         if self.opacity_label_var is not None:
             self.opacity_label_var.set(f"{percent}%")
-        self.root.attributes("-alpha", percent / 100)
+        self.on_preview_opacity(percent / 100)
 
     def _save(self) -> None:
         try:
@@ -361,6 +382,8 @@ class SettingsDialog:
             "interval_seconds": int(self.interval_var.get()),
             "market_type": self.market_type_var.get(),
             "chart_timeframe": self.chart_timeframe_var.get(),
+            "chart_always_visible": bool(current_config.get("chart_always_visible", False)),
+            "chart_hover_enabled": bool(current_config.get("chart_hover_enabled", True)),
             "alarms": alarms,
             "opacity": round(int(self.opacity_var.get()) / 100, 2),
             "custom_position": (
@@ -377,7 +400,8 @@ class SettingsDialog:
             return
 
         self.on_save(saved_config)
-        self._handle_close()
+        self._initial_opacity = int(float(saved_config["opacity"]) * 100)
+        self._handle_close(restore_opacity=False)
 
     def _parse_alarm_values(self) -> list[dict[str, object]]:
         alarms: list[dict[str, object]] = []
@@ -402,11 +426,16 @@ class SettingsDialog:
                 raise ValueError("Alert values must be numeric.") from exc
         return alarms
 
-    def _handle_close(self) -> None:
-        self.root.attributes("-alpha", self._initial_opacity / 100)
+    def _handle_close(self, restore_opacity: bool = True) -> None:
+        if restore_opacity:
+            self.on_preview_opacity(self._initial_opacity / 100)
         # Hide instead of destroy — avoids Windows Toplevel re-creation rendering bug
         if self.window is not None and self.window.winfo_exists():
             self.window.withdraw()
+
+    def set_chart_timeframe(self, timeframe: str) -> None:
+        if self.chart_timeframe_var is not None:
+            self.chart_timeframe_var.set(timeframe)
 
     def _destroy_window(self) -> None:
         if self.window is not None and self.window.winfo_exists():

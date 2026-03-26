@@ -129,6 +129,34 @@ class PriceFetcherTests(unittest.TestCase):
             timeout=10,
         )
 
+    def test_get_btc_candles_supports_extended_futures_timeframe(self) -> None:
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "code": "00000",
+            "data": [
+                ["1710000000000", "90000", "90500", "89500", "90300", "0", "0"],
+            ],
+        }
+        session = Mock()
+        session.get.return_value = response
+
+        fetcher = PriceFetcher(session=session)
+
+        candles = fetcher.get_btc_candles("4h")
+
+        self.assertEqual(candles, [(1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 0.0)])
+        session.get.assert_called_once_with(
+            FUTURES_CANDLES_URL,
+            params={
+                "symbol": "BTCUSDT",
+                "productType": "USDT-FUTURES",
+                "granularity": "4H",
+                "limit": 40,
+            },
+            timeout=10,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,8 @@ class OverlayWindow:
     NOTIFICATION_FLASH_INTERVAL_MS = 400
     SETTINGS_MENU_LABEL = "Settings"
     SHOW_HIDE_MENU_LABEL = "Show/Hide"
+    CHART_ALWAYS_VISIBLE_MENU_LABEL = "Always Show Chart"
+    CHART_HOVER_ENABLED_MENU_LABEL = "Hover Chart"
     QUIT_MENU_LABEL = "Quit"
     VOLUME_UP_COLOR = "#00d4aa40"
     VOLUME_DOWN_COLOR = "#ff6b6b40"
@@ -45,7 +47,13 @@ class OverlayWindow:
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
         on_position_change: Callable[[dict[str, int]], None] | None = None,
-        on_toggle_visibility: Callable[[], None] | None = None,
+        on_toggle_chart_always_visible: Callable[[], None] | None = None,
+        on_toggle_chart_hover_enabled: Callable[[], None] | None = None,
+        on_chart_timeframe_change: Callable[[str], None] | None = None,
+        on_chart_panel_opened: Callable[[], None] | None = None,
+        chart_timeframe: str = "15m",
+        chart_always_visible: bool = False,
+        chart_hover_enabled: bool = True,
     ) -> None:
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -59,7 +67,9 @@ class OverlayWindow:
         self._on_position_change = on_position_change
         self._alarm_engine: AlarmEngine | None = None
         self._alarms_provider: Callable[[], list[dict[str, object]]] | None = None
-        self._on_toggle_visibility = on_toggle_visibility
+        self._on_chart_timeframe_change = on_chart_timeframe_change
+        self._on_chart_panel_opened = on_chart_panel_opened
+        self._opacity = opacity
         self._latest_price_text = "Loading..."
         self._latest_direction_text = "─"
         self._latest_color = self.FLAT_COLOR
@@ -68,18 +78,29 @@ class OverlayWindow:
         self._notification_flash_job: str | None = None
         self._notification_clear_job: str | None = None
         self._chart_points: list[Candle] = []
-        self._chart_timeframe = "15m"
+        self._chart_timeframe = self._normalize_chart_timeframe(chart_timeframe)
         self._chart_market_type = "futures"
+        self._chart_always_visible = bool(chart_always_visible)
+        self._chart_hover_enabled = bool(chart_hover_enabled)
         self._chart_window: tk.Toplevel | None = None
+        self._chart_header_frame: tk.Frame | None = None
         self._chart_title_label: tk.Label | None = None
         self._chart_detail_label: tk.Label | None = None
         self._chart_canvas: tk.Canvas | None = None
+        self._chart_timeframe_var = tk.StringVar(value=self._chart_timeframe)
+        self._chart_always_visible_var = tk.BooleanVar(value=self._chart_always_visible)
+        self._chart_hover_enabled_var = tk.BooleanVar(value=self._chart_hover_enabled)
         self._chart_hover_job: str | None = None
         self._chart_hide_job: str | None = None
         self._overlay_hovering = False
         self._chart_hovering = False
         self._build_layout()
-        self._create_context_menu(on_open_settings, on_quit, on_toggle_visibility)
+        self._create_context_menu(
+            on_open_settings=on_open_settings,
+            on_quit=on_quit,
+            on_toggle_chart_always_visible=on_toggle_chart_always_visible,
+            on_toggle_chart_hover_enabled=on_toggle_chart_hover_enabled,
+        )
         self.set_position(custom_position)
         self._bind_interactions()
 
@@ -92,7 +113,38 @@ class OverlayWindow:
         self._alarms_provider = alarms_provider
 
     def set_opacity(self, opacity: float) -> None:
+        self._opacity = opacity
         self.root.attributes("-alpha", opacity)
+        if self._chart_window is not None and self._chart_window.winfo_exists():
+            self._chart_window.attributes("-alpha", opacity)
+
+    def set_chart_behavior(self, chart_always_visible: bool, chart_hover_enabled: bool) -> None:
+        self._chart_always_visible = bool(chart_always_visible)
+        self._chart_hover_enabled = bool(chart_hover_enabled)
+        self._chart_always_visible_var.set(self._chart_always_visible)
+        self._chart_hover_enabled_var.set(self._chart_hover_enabled)
+
+        if self._chart_always_visible:
+            self._show_chart_panel()
+            return
+
+        if not self._chart_hover_enabled:
+            self._hide_chart_panel()
+            return
+
+        if self._overlay_hovering or self._chart_hovering:
+            self._schedule_chart_show()
+            return
+
+        self._hide_chart_panel()
+
+    def set_chart_timeframe(self, timeframe: str) -> None:
+        self._chart_timeframe = self._normalize_chart_timeframe(timeframe)
+        self._chart_timeframe_var.set(self._chart_timeframe)
+        self._render_chart()
+
+    def is_chart_visible(self) -> bool:
+        return self._chart_window is not None and self._chart_window.winfo_exists()
 
     def set_position(self, custom_position: dict[str, int] | None = None) -> None:
         self._custom_position = dict(custom_position) if custom_position is not None else None
@@ -162,7 +214,8 @@ class OverlayWindow:
                 v = 0.0
             normalized.append((int(ts), float(o), float(h), float(l), float(c), float(v)))
         self._chart_points = sorted(normalized, key=lambda item: item[0])
-        self._chart_timeframe = "5m" if timeframe == "5m" else "15m"
+        self._chart_timeframe = self._normalize_chart_timeframe(timeframe)
+        self._chart_timeframe_var.set(self._chart_timeframe)
         self._chart_market_type = "spot" if market_type == "spot" else "futures"
         self._render_chart()
 
@@ -202,12 +255,23 @@ class OverlayWindow:
         self,
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
-        on_toggle_visibility: Callable[[], None] | None = None,
+        on_toggle_chart_always_visible: Callable[[], None] | None = None,
+        on_toggle_chart_hover_enabled: Callable[[], None] | None = None,
     ) -> None:
         self.context_menu = tk.Menu(self.root, tearoff=False)
         self.context_menu.add_command(label=self.SETTINGS_MENU_LABEL, command=on_open_settings)
-        if on_toggle_visibility is not None:
-            self.context_menu.add_command(label=self.SHOW_HIDE_MENU_LABEL, command=on_toggle_visibility)
+        if on_toggle_chart_always_visible is not None:
+            self.context_menu.add_checkbutton(
+                label=self.CHART_ALWAYS_VISIBLE_MENU_LABEL,
+                variable=self._chart_always_visible_var,
+                command=on_toggle_chart_always_visible,
+            )
+        if on_toggle_chart_hover_enabled is not None:
+            self.context_menu.add_checkbutton(
+                label=self.CHART_HOVER_ENABLED_MENU_LABEL,
+                variable=self._chart_hover_enabled_var,
+                command=on_toggle_chart_hover_enabled,
+            )
         self.context_menu.add_separator()
         self.context_menu.add_command(label=self.QUIT_MENU_LABEL, command=on_quit)
 
@@ -268,7 +332,8 @@ class OverlayWindow:
 
     def _start_drag(self, event: tk.Event) -> None:
         self._cancel_chart_jobs()
-        self._hide_chart_panel()
+        if not self._chart_always_visible:
+            self._hide_chart_panel()
         self._drag_x = event.x
         self._drag_y = event.y
 
@@ -334,6 +399,11 @@ class OverlayWindow:
     def _handle_overlay_enter(self, _event: tk.Event) -> None:
         self._overlay_hovering = True
         self._cancel_chart_hide_job()
+        if self._chart_always_visible:
+            self._show_chart_panel()
+            return
+        if not self._chart_hover_enabled:
+            return
         if self._chart_window is not None and self._chart_window.winfo_exists():
             return
         self._schedule_chart_show()
@@ -341,7 +411,7 @@ class OverlayWindow:
     def _handle_overlay_leave(self, _event: tk.Event) -> None:
         self._overlay_hovering = False
         self._cancel_chart_hover_job()
-        if not self._chart_hovering:
+        if not self._chart_hovering and not self._chart_always_visible:
             self._schedule_chart_hide()
 
     def _handle_chart_enter(self, _event: tk.Event) -> None:
@@ -350,10 +420,12 @@ class OverlayWindow:
 
     def _handle_chart_leave(self, _event: tk.Event) -> None:
         self._chart_hovering = False
-        if not self._overlay_hovering:
+        if not self._overlay_hovering and not self._chart_always_visible:
             self._schedule_chart_hide()
 
     def _schedule_chart_show(self) -> None:
+        if not self._chart_hover_enabled and not self._chart_always_visible:
+            return
         self._cancel_chart_hover_job()
         self._chart_hover_job = self.root.after(
             self.CHART_HOVER_DELAY_MS,
@@ -361,6 +433,8 @@ class OverlayWindow:
         )
 
     def _schedule_chart_hide(self) -> None:
+        if self._chart_always_visible:
+            return
         self._cancel_chart_hide_job()
         self._chart_hide_job = self.root.after(
             self.CHART_HIDE_DELAY_MS,
@@ -376,20 +450,46 @@ class OverlayWindow:
         self._chart_window = tk.Toplevel(self.root)
         self._chart_window.overrideredirect(True)
         self._chart_window.attributes("-topmost", True)
+        self._chart_window.attributes("-alpha", self._opacity)
         self._chart_window.configure(bg=self.CHART_BORDER)
 
         frame = tk.Frame(self._chart_window, bg=self.CHART_BACKGROUND, padx=10, pady=10)
         frame.pack(fill="both", expand=True, padx=1, pady=1)
 
+        self._chart_header_frame = tk.Frame(frame, bg=self.CHART_BACKGROUND)
+        self._chart_header_frame.pack(fill="x")
+
         self._chart_title_label = tk.Label(
-            frame,
+            self._chart_header_frame,
             text="BTCUSDT",
             bg=self.CHART_BACKGROUND,
             fg="#f0f6fc",
             font=("Segoe UI", 10, "bold"),
             anchor="w",
         )
-        self._chart_title_label.pack(fill="x")
+        self._chart_title_label.pack(side="left", fill="x", expand=True)
+
+        timeframe_frame = tk.Frame(self._chart_header_frame, bg=self.CHART_BACKGROUND)
+        timeframe_frame.pack(side="right")
+        for timeframe in ("5m", "15m", "1h", "4h"):
+            tk.Radiobutton(
+                timeframe_frame,
+                text=self._format_chart_timeframe_label(timeframe),
+                variable=self._chart_timeframe_var,
+                value=timeframe,
+                indicatoron=False,
+                command=self._handle_chart_timeframe_change,
+                bg=self.CHART_BACKGROUND,
+                fg="#c9d1d9",
+                selectcolor=self.CHART_BORDER,
+                activebackground=self.CHART_BORDER,
+                activeforeground="#f0f6fc",
+                font=("Segoe UI", 8),
+                padx=6,
+                pady=2,
+                relief="flat",
+                borderwidth=1,
+            ).pack(side="left", padx=(4, 0))
 
         self._chart_detail_label = tk.Label(
             frame,
@@ -414,6 +514,7 @@ class OverlayWindow:
         chart_widgets = [
             self._chart_window,
             frame,
+            self._chart_header_frame,
             self._chart_title_label,
             self._chart_detail_label,
             self._chart_canvas,
@@ -423,9 +524,13 @@ class OverlayWindow:
             widget.bind("<Leave>", self._handle_chart_leave, add="+")
 
         self._reposition_chart()
+        if self._on_chart_panel_opened is not None:
+            self._on_chart_panel_opened()
         self._render_chart()
 
-    def _hide_chart_panel(self) -> None:
+    def _hide_chart_panel(self, force: bool = False) -> None:
+        if self._chart_always_visible and not force:
+            return
         self._cancel_chart_jobs()
         self._chart_hovering = False
         if self._chart_window is None:
@@ -433,9 +538,19 @@ class OverlayWindow:
         if self._chart_window.winfo_exists():
             self._chart_window.destroy()
         self._chart_window = None
+        self._chart_header_frame = None
         self._chart_title_label = None
         self._chart_detail_label = None
         self._chart_canvas = None
+
+    def _handle_chart_timeframe_change(self) -> None:
+        timeframe = self._normalize_chart_timeframe(self._chart_timeframe_var.get())
+        self._chart_timeframe_var.set(timeframe)
+        self._chart_timeframe = timeframe
+        if self._on_chart_timeframe_change is not None:
+            self._on_chart_timeframe_change(timeframe)
+            return
+        self._render_chart()
 
     def _reposition_chart(self) -> None:
         if self._chart_window is None or not self._chart_window.winfo_exists():
@@ -461,7 +576,7 @@ class OverlayWindow:
             return
 
         market_label = "Spot" if self._chart_market_type == "spot" else "Futures"
-        timeframe_label = "5 min" if self._chart_timeframe == "5m" else "15 min"
+        timeframe_label = self._format_chart_timeframe_label(self._chart_timeframe)
         self._chart_title_label.config(text=f"BTCUSDT {market_label} {timeframe_label}")
 
         canvas = self._chart_canvas
@@ -670,8 +785,10 @@ class OverlayWindow:
     def toggle_visibility(self) -> None:
         if self.root.state() == "withdrawn":
             self.root.deiconify()
+            if self._chart_always_visible:
+                self._show_chart_panel()
         else:
-            self._hide_chart_panel()
+            self._hide_chart_panel(force=True)
             self.root.withdraw()
 
     @staticmethod
@@ -679,6 +796,22 @@ class OverlayWindow:
         if alarm_price.is_integer():
             return f"${alarm_price:,.0f}"
         return f"${alarm_price:,.2f}"
+
+    @staticmethod
+    def _normalize_chart_timeframe(timeframe: str) -> str:
+        if timeframe in {"5m", "15m", "1h", "4h"}:
+            return timeframe
+        return "15m"
+
+    @staticmethod
+    def _format_chart_timeframe_label(timeframe: str) -> str:
+        mapping = {
+            "5m": "5 min",
+            "15m": "15 min",
+            "1h": "1 hour",
+            "4h": "4 hour",
+        }
+        return mapping.get(timeframe, "15 min")
 
     def _show_context_menu(self, event: tk.Event) -> None:
         try:

@@ -18,10 +18,14 @@ DEFAULT_CANDLE_LIMIT = 40
 SPOT_TIMEFRAME_GRANULARITY_MAP = {
     "5m": "5min",
     "15m": "15min",
+    "1h": "1h",
+    "4h": "4h",
 }
 FUTURES_TIMEFRAME_GRANULARITY_MAP = {
     "5m": "5m",
     "15m": "15m",
+    "1h": "1H",
+    "4h": "4H",
 }
 Candle = tuple[int, float, float, float, float, float]  # (ts, open, high, low, close, volume)
 
@@ -116,7 +120,9 @@ class PriceFetcher:
 
     @staticmethod
     def _normalize_timeframe(timeframe: str) -> str:
-        return "5m" if timeframe == "5m" else "15m"
+        if timeframe in SPOT_TIMEFRAME_GRANULARITY_MAP:
+            return timeframe
+        return "15m"
 
     @classmethod
     def _build_request(cls, market_type: str) -> tuple[str, dict[str, str]]:

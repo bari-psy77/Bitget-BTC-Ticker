@@ -10,3 +10,4 @@ dist/
 *.spec
 .idea/
 .vscode/
+log/

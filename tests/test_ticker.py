@@ -7,10 +7,11 @@ from bitget_ticker.ticker import BitgetBTCTicker
 
 
 class _OverlayStub:
-    def __init__(self) -> None:
+    def __init__(self, chart_visible: bool = False) -> None:
         self.notifications: list[tuple[float, float]] = []
         self.display_updates: list[tuple[float, float | None]] = []
         self.chart_updates: list[tuple[list[tuple[int, float, float, float, float, float]], str, str]] = []
+        self.chart_visible = chart_visible
 
     def show_notification(self, alarm_price: float, current_price: float) -> None:
         self.notifications.append((alarm_price, current_price))
@@ -25,6 +26,9 @@ class _OverlayStub:
         market_type: str,
     ) -> None:
         self.chart_updates.append((candles, timeframe, market_type))
+
+    def is_chart_visible(self) -> bool:
+        return self.chart_visible
 
 
 class BitgetTickerAlertModeTests(unittest.TestCase):
@@ -55,6 +59,8 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
                 (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
                 (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
             ],
+            "15m",
+            "futures",
         )
 
         self.assertEqual(app.overlay.display_updates, [(91000.0, 90000.0)])
@@ -79,6 +85,16 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(app.previous_price, 91000.0)
+
+    def test_should_refresh_chart_respects_force_and_visibility(self) -> None:
+        app = BitgetBTCTicker.__new__(BitgetBTCTicker)
+        app.overlay = _OverlayStub(chart_visible=False)
+
+        self.assertFalse(app._should_refresh_chart(force_chart_refresh=False))
+        self.assertTrue(app._should_refresh_chart(force_chart_refresh=True))
+
+        app.overlay.chart_visible = True
+        self.assertTrue(app._should_refresh_chart(force_chart_refresh=False))
 
 
 if __name__ == "__main__":
