@@ -474,7 +474,7 @@ class OverlayWindow:
         for timeframe in ("5m", "15m", "1h", "4h"):
             tk.Radiobutton(
                 timeframe_frame,
-                text=self._format_chart_timeframe_label(timeframe),
+                text=self._format_chart_timeframe_toggle_label(timeframe),
                 variable=self._chart_timeframe_var,
                 value=timeframe,
                 indicatoron=False,
@@ -812,6 +812,16 @@ class OverlayWindow:
             "4h": "4 hour",
         }
         return mapping.get(timeframe, "15 min")
+
+    @staticmethod
+    def _format_chart_timeframe_toggle_label(timeframe: str) -> str:
+        mapping = {
+            "5m": "5m",
+            "15m": "15m",
+            "1h": "1h",
+            "4h": "4h",
+        }
+        return mapping.get(timeframe, "15m")
 
     def _show_context_menu(self, event: tk.Event) -> None:
         try:

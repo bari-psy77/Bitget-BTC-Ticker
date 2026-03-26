@@ -90,6 +90,12 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(OverlayWindow._format_chart_timeframe_label("1h"), "1 hour")
         self.assertEqual(OverlayWindow._format_chart_timeframe_label("4h"), "4 hour")
 
+    def test_format_chart_timeframe_toggle_label_uses_compact_codes(self) -> None:
+        self.assertEqual(OverlayWindow._format_chart_timeframe_toggle_label("5m"), "5m")
+        self.assertEqual(OverlayWindow._format_chart_timeframe_toggle_label("15m"), "15m")
+        self.assertEqual(OverlayWindow._format_chart_timeframe_toggle_label("1h"), "1h")
+        self.assertEqual(OverlayWindow._format_chart_timeframe_toggle_label("4h"), "4h")
+
 
 if __name__ == "__main__":
     unittest.main()
