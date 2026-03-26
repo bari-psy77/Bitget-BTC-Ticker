@@ -392,21 +392,8 @@ class OverlayWindow:
         return x, min(max(0, below_y), max_y)
 
     def _bind_interactions(self) -> None:
-        drag_widgets = [
-            self.root,
-            self.container,
-            self.price_row,
-            self.icon_label,
-            self.price_label,
-            self.direction_label,
-        ]
-        hover_widgets = [
-            *drag_widgets,
-            self.opacity_row,
-            self.opacity_caption_label,
-            self.opacity_value_label,
-            self.opacity_scale,
-        ]
+        drag_widgets = self._drag_bind_targets()
+        hover_widgets = self._hover_bind_targets()
         for widget in drag_widgets:
             widget.bind("<Button-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._do_drag)
@@ -415,6 +402,25 @@ class OverlayWindow:
             widget.bind("<Button-3>", self._show_context_menu)
             widget.bind("<Enter>", self._handle_overlay_enter, add="+")
             widget.bind("<Leave>", self._handle_overlay_leave, add="+")
+
+    def _drag_bind_targets(self) -> list[tk.Misc]:
+        return [
+            self.price_row,
+            self.icon_label,
+            self.price_label,
+            self.direction_label,
+        ]
+
+    def _hover_bind_targets(self) -> list[tk.Misc]:
+        return [
+            self.root,
+            self.container,
+            *self._drag_bind_targets(),
+            self.opacity_row,
+            self.opacity_caption_label,
+            self.opacity_value_label,
+            self.opacity_scale,
+        ]
 
     def _start_drag(self, event: tk.Event) -> None:
         if self._should_ignore_drag_event(event):

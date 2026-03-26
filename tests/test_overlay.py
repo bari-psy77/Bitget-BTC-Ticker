@@ -144,6 +144,29 @@ class OverlayWindowPositionTests(unittest.TestCase):
             )
         )
 
+    def test_drag_bind_targets_exclude_overlay_container_and_opacity_controls(self) -> None:
+        overlay = OverlayWindow.__new__(OverlayWindow)
+        overlay.root = object()
+        overlay.container = object()
+        overlay.price_row = object()
+        overlay.icon_label = object()
+        overlay.price_label = object()
+        overlay.direction_label = object()
+        overlay.opacity_row = object()
+        overlay.opacity_caption_label = object()
+        overlay.opacity_value_label = object()
+        overlay.opacity_scale = object()
+
+        self.assertEqual(
+            overlay._drag_bind_targets(),
+            [
+                overlay.price_row,
+                overlay.icon_label,
+                overlay.price_label,
+                overlay.direction_label,
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
