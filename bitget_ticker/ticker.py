@@ -15,6 +15,13 @@ from bitget_ticker.components.tray import TrayIcon
 class BitgetBTCTicker:
     """Coordinate configuration, UI, tray, alarms, and price polling."""
 
+    TIMEFRAME_SECONDS = {
+        "5m": 5 * 60,
+        "15m": 15 * 60,
+        "1h": 60 * 60,
+        "4h": 4 * 60 * 60,
+    }
+
     def __init__(self) -> None:
         self.config_manager = ConfigManager()
         self.config = self.config_manager.load()
@@ -231,7 +238,12 @@ class BitgetBTCTicker:
     ) -> None:
         self.overlay.update_display(price, self.previous_price)
         self.previous_price = price
-        self.chart_points = list(candles)
+        base_candles = list(candles) if candles else list(self.chart_points)
+        self.chart_points = self._merge_live_price_into_candles(
+            candles=base_candles,
+            latest_price=price,
+            timeframe=timeframe,
+        )
         self.overlay.update_chart_data(
             candles=list(self.chart_points),
             timeframe=timeframe,
@@ -261,6 +273,50 @@ class BitgetBTCTicker:
             self.config = self.config_manager.save(self.config)
         except OSError:
             return
+
+    @classmethod
+    def _merge_live_price_into_candles(
+        cls,
+        candles: list[Candle],
+        latest_price: float,
+        timeframe: str,
+        current_timestamp_ms: int | None = None,
+    ) -> list[Candle]:
+        if not candles:
+            return []
+
+        merged = list(candles)
+        last_timestamp, open_price, high_price, low_price, close_price, volume = merged[-1]
+        bucket_ms = cls._timeframe_to_milliseconds(timeframe)
+        if current_timestamp_ms is None:
+            current_timestamp_ms = int(time.time() * 1000)
+
+        if current_timestamp_ms >= last_timestamp + bucket_ms:
+            merged.append(
+                (
+                    last_timestamp + bucket_ms,
+                    close_price,
+                    max(close_price, latest_price),
+                    min(close_price, latest_price),
+                    latest_price,
+                    0.0,
+                )
+            )
+            return merged
+
+        merged[-1] = (
+            last_timestamp,
+            open_price,
+            max(high_price, latest_price),
+            min(low_price, latest_price),
+            latest_price,
+            volume,
+        )
+        return merged
+
+    @classmethod
+    def _timeframe_to_milliseconds(cls, timeframe: str) -> int:
+        return int(cls.TIMEFRAME_SECONDS.get(str(timeframe), 15 * 60) * 1000)
 
     def _shutdown_ui(self) -> None:
         self.root.quit()

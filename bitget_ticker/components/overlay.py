@@ -417,6 +417,8 @@ class OverlayWindow:
             widget.bind("<Leave>", self._handle_overlay_leave, add="+")
 
     def _start_drag(self, event: tk.Event) -> None:
+        if self._should_ignore_drag_event(event):
+            return
         self._cancel_chart_jobs()
         if not self._chart_always_visible:
             self._hide_chart_panel()
@@ -424,12 +426,16 @@ class OverlayWindow:
         self._drag_y = event.y
 
     def _do_drag(self, event: tk.Event) -> None:
+        if self._should_ignore_drag_event(event):
+            return
         x = self.root.winfo_x() + event.x - self._drag_x
         y = self.root.winfo_y() + event.y - self._drag_y
         self.root.geometry(f"+{x}+{y}")
         self._reposition_chart()
 
-    def _finish_drag(self, _event: tk.Event) -> None:
+    def _finish_drag(self, event: tk.Event) -> None:
+        if self._should_ignore_drag_event(event):
+            return
         position = {
             "x": self.root.winfo_x(),
             "y": self.root.winfo_y(),
@@ -445,6 +451,14 @@ class OverlayWindow:
         self.set_opacity(opacity)
         if self._on_opacity_change is not None:
             self._on_opacity_change(opacity)
+
+    def _should_ignore_drag_event(self, event: tk.Event) -> bool:
+        return event.widget in {
+            self.opacity_row,
+            self.opacity_caption_label,
+            self.opacity_value_label,
+            self.opacity_scale,
+        }
 
     def _render_display(self) -> None:
         if self._notification_message is not None:

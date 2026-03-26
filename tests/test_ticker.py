@@ -77,15 +77,16 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
             "chart_timeframe": "15m",
         }
 
-        app._apply_market_snapshot(
-            91000.0,
-            [
-                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
-                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
-            ],
-            "15m",
-            "futures",
-        )
+        with patch("bitget_ticker.ticker.time.time", return_value=1710001200.0):
+            app._apply_market_snapshot(
+                91000.0,
+                [
+                    (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
+                    (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
+                ],
+                "15m",
+                "futures",
+            )
 
         self.assertEqual(app.overlay.display_updates, [(91000.0, 90000.0)])
         self.assertEqual(
@@ -94,7 +95,7 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
                 (
                     [
                         (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
-                        (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
+                        (1710000900000, 90300.0, 91000.0, 90200.0, 91000.0, 5678.9),
                     ],
                     "15m",
                     "futures",
@@ -105,10 +106,69 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
             app.chart_points,
             [
                 (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
-                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 91000.0, 5678.9),
             ],
         )
         self.assertEqual(app.previous_price, 91000.0)
+
+    def test_apply_market_snapshot_appends_live_candle_when_api_candles_are_stale(self) -> None:
+        app = BitgetBTCTicker.__new__(BitgetBTCTicker)
+        app.overlay = _OverlayStub()
+        app.previous_price = 90000.0
+        app.chart_points = []
+        app.config = {
+            "market_type": "futures",
+            "chart_timeframe": "15m",
+        }
+
+        with patch("bitget_ticker.ticker.time.time", return_value=1710001800.0):
+            app._apply_market_snapshot(
+                91500.0,
+                [
+                    (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
+                    (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
+                ],
+                "15m",
+                "futures",
+            )
+
+        self.assertEqual(
+            app.chart_points,
+            [
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
+                (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
+                (1710001800000, 90850.0, 91500.0, 90850.0, 91500.0, 0.0),
+            ],
+        )
+
+    def test_apply_market_snapshot_uses_cached_chart_points_when_candle_fetch_returns_empty(self) -> None:
+        app = BitgetBTCTicker.__new__(BitgetBTCTicker)
+        app.overlay = _OverlayStub()
+        app.previous_price = 90000.0
+        app.chart_points = [
+            (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
+            (1710000900000, 90300.0, 91000.0, 90200.0, 90850.0, 5678.9),
+        ]
+        app.config = {
+            "market_type": "futures",
+            "chart_timeframe": "15m",
+        }
+
+        with patch("bitget_ticker.ticker.time.time", return_value=1710001200.0):
+            app._apply_market_snapshot(
+                91234.0,
+                [],
+                "15m",
+                "futures",
+            )
+
+        self.assertEqual(
+            app.chart_points,
+            [
+                (1710000000000, 90000.0, 90500.0, 89500.0, 90300.0, 1234.5),
+                (1710000900000, 90300.0, 91234.0, 90200.0, 91234.0, 5678.9),
+            ],
+        )
 
     def test_should_refresh_chart_respects_force_and_visibility(self) -> None:
         app = BitgetBTCTicker.__new__(BitgetBTCTicker)

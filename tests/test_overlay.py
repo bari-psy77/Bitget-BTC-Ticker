@@ -111,6 +111,39 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(OverlayWindow._format_chart_timeframe_toggle_label("1h"), "1h")
         self.assertEqual(OverlayWindow._format_chart_timeframe_toggle_label("4h"), "4h")
 
+    def test_should_ignore_drag_event_for_opacity_controls(self) -> None:
+        overlay = OverlayWindow.__new__(OverlayWindow)
+        overlay.opacity_row = object()
+        overlay.opacity_caption_label = object()
+        overlay.opacity_value_label = object()
+        overlay.opacity_scale = object()
+
+        self.assertTrue(
+            overlay._should_ignore_drag_event(
+                type("Event", (), {"widget": overlay.opacity_row})()
+            )
+        )
+        self.assertTrue(
+            overlay._should_ignore_drag_event(
+                type("Event", (), {"widget": overlay.opacity_caption_label})()
+            )
+        )
+        self.assertTrue(
+            overlay._should_ignore_drag_event(
+                type("Event", (), {"widget": overlay.opacity_value_label})()
+            )
+        )
+        self.assertTrue(
+            overlay._should_ignore_drag_event(
+                type("Event", (), {"widget": overlay.opacity_scale})()
+            )
+        )
+        self.assertFalse(
+            overlay._should_ignore_drag_event(
+                type("Event", (), {"widget": object()})()
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
