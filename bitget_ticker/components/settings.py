@@ -437,6 +437,17 @@ class SettingsDialog:
         if self.chart_timeframe_var is not None:
             self.chart_timeframe_var.set(timeframe)
 
+    def set_opacity(self, opacity: float) -> None:
+        percent = int(round(opacity * 100))
+        self._initial_opacity = percent
+        if self.opacity_var is not None:
+            self.opacity_var.set(percent)
+        if self.opacity_label_var is not None:
+            self.opacity_label_var.set(f"{percent}%")
+
+    def destroy(self) -> None:
+        self._destroy_window()
+
     def _destroy_window(self) -> None:
         if self.window is not None and self.window.winfo_exists():
             self.window.destroy()

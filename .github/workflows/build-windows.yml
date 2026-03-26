@@ -23,9 +23,13 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
+    - name: Rebuild icon asset
+      run: |
+        python assets/generate_icon.py
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --name "Bitget-BTC-Ticker" --icon "assets/icon.ico" --add-data "assets/icon.ico;assets" bitget_ticker/main.py
+        pyinstaller --clean --onefile --windowed --name "Bitget-BTC-Ticker" --icon "assets/icon.ico" --add-data "assets/icon.ico;assets" bitget_ticker/main.py
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4

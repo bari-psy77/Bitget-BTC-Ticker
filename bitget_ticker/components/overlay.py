@@ -12,7 +12,7 @@ class OverlayWindow:
     """Bottom overlay window for BTC price display."""
 
     WIDTH = 260
-    HEIGHT = 38
+    HEIGHT = 74
     CHART_WIDTH = 320
     CHART_HEIGHT = 280
     CHART_GAP = 12
@@ -26,6 +26,9 @@ class OverlayWindow:
     CHART_ALWAYS_VISIBLE_MENU_LABEL = "Always Show Chart"
     CHART_HOVER_ENABLED_MENU_LABEL = "Hover Chart"
     QUIT_MENU_LABEL = "Quit"
+    OPACITY_LABEL = "Opacity"
+    OPACITY_SCALE_MIN = 20
+    OPACITY_SCALE_MAX = 100
     VOLUME_UP_COLOR = "#00d4aa40"
     VOLUME_DOWN_COLOR = "#ff6b6b40"
     BACKGROUND = "#0d1117"
@@ -47,10 +50,12 @@ class OverlayWindow:
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
         on_position_change: Callable[[dict[str, int]], None] | None = None,
+        on_toggle_visibility: Callable[[], None] | None = None,
         on_toggle_chart_always_visible: Callable[[], None] | None = None,
         on_toggle_chart_hover_enabled: Callable[[], None] | None = None,
         on_chart_timeframe_change: Callable[[str], None] | None = None,
         on_chart_panel_opened: Callable[[], None] | None = None,
+        on_opacity_change: Callable[[float], None] | None = None,
         chart_timeframe: str = "15m",
         chart_always_visible: bool = False,
         chart_hover_enabled: bool = True,
@@ -65,11 +70,14 @@ class OverlayWindow:
         self._drag_y = 0
         self._custom_position = custom_position
         self._on_position_change = on_position_change
+        self._on_toggle_visibility = on_toggle_visibility
         self._alarm_engine: AlarmEngine | None = None
         self._alarms_provider: Callable[[], list[dict[str, object]]] | None = None
         self._on_chart_timeframe_change = on_chart_timeframe_change
         self._on_chart_panel_opened = on_chart_panel_opened
+        self._on_opacity_change = on_opacity_change
         self._opacity = opacity
+        self._opacity_control_updating = False
         self._latest_price_text = "Loading..."
         self._latest_direction_text = "─"
         self._latest_color = self.FLAT_COLOR
@@ -94,10 +102,16 @@ class OverlayWindow:
         self._chart_hide_job: str | None = None
         self._overlay_hovering = False
         self._chart_hovering = False
+        self.price_row: tk.Frame | None = None
+        self.opacity_row: tk.Frame | None = None
+        self.opacity_caption_label: tk.Label | None = None
+        self.opacity_scale: tk.Scale | None = None
+        self.opacity_value_label: tk.Label | None = None
         self._build_layout()
         self._create_context_menu(
             on_open_settings=on_open_settings,
             on_quit=on_quit,
+            on_toggle_visibility=on_toggle_visibility,
             on_toggle_chart_always_visible=on_toggle_chart_always_visible,
             on_toggle_chart_hover_enabled=on_toggle_chart_hover_enabled,
         )
@@ -117,6 +131,7 @@ class OverlayWindow:
         self.root.attributes("-alpha", opacity)
         if self._chart_window is not None and self._chart_window.winfo_exists():
             self._chart_window.attributes("-alpha", opacity)
+        self._sync_opacity_controls(opacity)
 
     def set_chart_behavior(self, chart_always_visible: bool, chart_hover_enabled: bool) -> None:
         self._chart_always_visible = bool(chart_always_visible)
@@ -223,8 +238,11 @@ class OverlayWindow:
         self.container = tk.Frame(self.root, bg=self.BACKGROUND, padx=10, pady=6)
         self.container.pack(fill="both", expand=True)
 
+        self.price_row = tk.Frame(self.container, bg=self.BACKGROUND)
+        self.price_row.pack(fill="x")
+
         self.icon_label = tk.Label(
-            self.container,
+            self.price_row,
             text="₿",
             bg=self.BACKGROUND,
             fg=self.ICON_COLOR,
@@ -233,7 +251,7 @@ class OverlayWindow:
         self.icon_label.pack(side="left")
 
         self.price_label = tk.Label(
-            self.container,
+            self.price_row,
             text="Loading...",
             bg=self.BACKGROUND,
             fg=self.FLAT_COLOR,
@@ -243,7 +261,7 @@ class OverlayWindow:
         self.price_label.pack(side="left")
 
         self.direction_label = tk.Label(
-            self.container,
+            self.price_row,
             text="─",
             bg=self.BACKGROUND,
             fg=self.FLAT_COLOR,
@@ -251,15 +269,60 @@ class OverlayWindow:
         )
         self.direction_label.pack(side="left")
 
+        self.opacity_row = tk.Frame(self.container, bg=self.BACKGROUND)
+        self.opacity_row.pack(fill="x", pady=(6, 0))
+
+        self.opacity_caption_label = tk.Label(
+            self.opacity_row,
+            text=self.OPACITY_LABEL,
+            bg=self.BACKGROUND,
+            fg=self.FLAT_COLOR,
+            font=("Segoe UI", 8),
+        )
+        self.opacity_caption_label.pack(side="left")
+
+        self.opacity_value_label = tk.Label(
+            self.opacity_row,
+            text=self._format_opacity_label(opacity=self._opacity),
+            bg=self.BACKGROUND,
+            fg=self.FLAT_COLOR,
+            font=("Segoe UI", 8, "bold"),
+            width=4,
+            anchor="e",
+        )
+        self.opacity_value_label.pack(side="right")
+
+        self.opacity_scale = tk.Scale(
+            self.opacity_row,
+            from_=self.OPACITY_SCALE_MIN,
+            to=self.OPACITY_SCALE_MAX,
+            orient="horizontal",
+            showvalue=False,
+            resolution=1,
+            length=156,
+            command=self._handle_opacity_scale_change,
+            bg=self.BACKGROUND,
+            fg=self.FLAT_COLOR,
+            activebackground=self.CHART_BORDER,
+            highlightthickness=0,
+            bd=0,
+            troughcolor="#4b5563",
+        )
+        self.opacity_scale.pack(side="right", fill="x", expand=True, padx=(8, 8))
+        self._sync_opacity_controls(self._opacity)
+
     def _create_context_menu(
         self,
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
+        on_toggle_visibility: Callable[[], None] | None = None,
         on_toggle_chart_always_visible: Callable[[], None] | None = None,
         on_toggle_chart_hover_enabled: Callable[[], None] | None = None,
     ) -> None:
         self.context_menu = tk.Menu(self.root, tearoff=False)
         self.context_menu.add_command(label=self.SETTINGS_MENU_LABEL, command=on_open_settings)
+        if on_toggle_visibility is not None:
+            self.context_menu.add_command(label=self.SHOW_HIDE_MENU_LABEL, command=on_toggle_visibility)
         if on_toggle_chart_always_visible is not None:
             self.context_menu.add_checkbutton(
                 label=self.CHART_ALWAYS_VISIBLE_MENU_LABEL,
@@ -274,6 +337,20 @@ class OverlayWindow:
             )
         self.context_menu.add_separator()
         self.context_menu.add_command(label=self.QUIT_MENU_LABEL, command=on_quit)
+
+    @classmethod
+    def build_context_menu_labels(
+        cls,
+        include_visibility_toggle: bool,
+        include_chart_controls: bool,
+    ) -> list[str]:
+        labels = [cls.SETTINGS_MENU_LABEL]
+        if include_visibility_toggle:
+            labels.append(cls.SHOW_HIDE_MENU_LABEL)
+        if include_chart_controls:
+            labels.extend([cls.CHART_ALWAYS_VISIBLE_MENU_LABEL, cls.CHART_HOVER_ENABLED_MENU_LABEL])
+        labels.append(cls.QUIT_MENU_LABEL)
+        return labels
 
     @classmethod
     def resolve_position(
@@ -315,17 +392,26 @@ class OverlayWindow:
         return x, min(max(0, below_y), max_y)
 
     def _bind_interactions(self) -> None:
-        widgets = [
+        drag_widgets = [
             self.root,
             self.container,
+            self.price_row,
             self.icon_label,
             self.price_label,
             self.direction_label,
         ]
-        for widget in widgets:
+        hover_widgets = [
+            *drag_widgets,
+            self.opacity_row,
+            self.opacity_caption_label,
+            self.opacity_value_label,
+            self.opacity_scale,
+        ]
+        for widget in drag_widgets:
             widget.bind("<Button-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._do_drag)
             widget.bind("<ButtonRelease-1>", self._finish_drag)
+        for widget in hover_widgets:
             widget.bind("<Button-3>", self._show_context_menu)
             widget.bind("<Enter>", self._handle_overlay_enter, add="+")
             widget.bind("<Leave>", self._handle_overlay_leave, add="+")
@@ -351,6 +437,14 @@ class OverlayWindow:
         self._custom_position = position
         if self._on_position_change is not None:
             self._on_position_change(position)
+
+    def _handle_opacity_scale_change(self, value: str) -> None:
+        if self._opacity_control_updating:
+            return
+        opacity = int(float(value)) / 100
+        self.set_opacity(opacity)
+        if self._on_opacity_change is not None:
+            self._on_opacity_change(opacity)
 
     def _render_display(self) -> None:
         if self._notification_message is not None:
@@ -690,9 +784,23 @@ class OverlayWindow:
     def _apply_display_theme(self, background: str) -> None:
         self.root.configure(bg=background)
         self.container.configure(bg=background)
+        if self.price_row is not None:
+            self.price_row.configure(bg=background)
         self.icon_label.configure(bg=background)
         self.price_label.configure(bg=background)
         self.direction_label.configure(bg=background)
+        if self.opacity_row is not None:
+            self.opacity_row.configure(bg=background)
+        if self.opacity_caption_label is not None:
+            self.opacity_caption_label.configure(bg=background)
+        if self.opacity_value_label is not None:
+            self.opacity_value_label.configure(bg=background)
+        if self.opacity_scale is not None:
+            self.opacity_scale.configure(
+                bg=background,
+                activebackground=self.CHART_BORDER,
+                highlightbackground=background,
+            )
 
     def _cancel_chart_hover_job(self) -> None:
         if self._chart_hover_job is None:
@@ -822,6 +930,21 @@ class OverlayWindow:
             "4h": "4h",
         }
         return mapping.get(timeframe, "15m")
+
+    def _sync_opacity_controls(self, opacity: float) -> None:
+        percent = int(round(opacity * 100))
+        self._opacity_control_updating = True
+        try:
+            if self.opacity_scale is not None:
+                self.opacity_scale.set(percent)
+            if self.opacity_value_label is not None:
+                self.opacity_value_label.config(text=self._format_opacity_label(opacity))
+        finally:
+            self._opacity_control_updating = False
+
+    @staticmethod
+    def _format_opacity_label(opacity: float) -> str:
+        return f"{int(round(opacity * 100))}%"
 
     def _show_context_menu(self, event: tk.Event) -> None:
         try:

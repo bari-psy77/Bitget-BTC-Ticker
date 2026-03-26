@@ -36,6 +36,21 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertEqual(OverlayWindow.CHART_HOVER_ENABLED_MENU_LABEL, "Hover Chart")
         self.assertEqual(OverlayWindow.QUIT_MENU_LABEL, "Quit")
 
+    def test_build_context_menu_labels_keeps_show_hide_and_chart_controls(self) -> None:
+        self.assertEqual(
+            OverlayWindow.build_context_menu_labels(
+                include_visibility_toggle=True,
+                include_chart_controls=True,
+            ),
+            [
+                "Settings",
+                "Show/Hide",
+                "Always Show Chart",
+                "Hover Chart",
+                "Quit",
+            ],
+        )
+
     def test_resolve_chart_position_prefers_above_overlay(self) -> None:
         x, y = OverlayWindow.resolve_chart_position(
             overlay_x=1200,

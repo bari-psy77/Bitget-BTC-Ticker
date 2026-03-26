@@ -31,6 +31,30 @@ class _OverlayStub:
         return self.chart_visible
 
 
+class _RootStub:
+    def __init__(self) -> None:
+        self.after_calls: list[tuple[int, object]] = []
+
+    def after(self, delay: int, callback) -> None:
+        self.after_calls.append((delay, callback))
+
+
+class _SettingsDialogStub:
+    def __init__(self) -> None:
+        self.destroy_called = False
+
+    def destroy(self) -> None:
+        self.destroy_called = True
+
+
+class _TrayIconStub:
+    def __init__(self) -> None:
+        self.stop_called = False
+
+    def stop(self) -> None:
+        self.stop_called = True
+
+
 class BitgetTickerAlertModeTests(unittest.TestCase):
     def test_on_alarm_uses_overlay_notification_for_notification_alarm(self) -> None:
         app = BitgetBTCTicker.__new__(BitgetBTCTicker)
@@ -95,6 +119,22 @@ class BitgetTickerAlertModeTests(unittest.TestCase):
 
         app.overlay.chart_visible = True
         self.assertTrue(app._should_refresh_chart(force_chart_refresh=False))
+
+    def test_quit_app_destroys_settings_dialog_before_shutdown(self) -> None:
+        app = BitgetBTCTicker.__new__(BitgetBTCTicker)
+        app.running = True
+        app.settings_dialog = _SettingsDialogStub()
+        app.tray_icon = _TrayIconStub()
+        app.root = _RootStub()
+
+        app.quit_app()
+
+        self.assertFalse(app.running)
+        self.assertTrue(app.settings_dialog.destroy_called)
+        self.assertTrue(app.tray_icon.stop_called)
+        self.assertEqual(len(app.root.after_calls), 1)
+        self.assertEqual(app.root.after_calls[0][0], 0)
+        self.assertEqual(app.root.after_calls[0][1], app._shutdown_ui)
 
 
 if __name__ == "__main__":

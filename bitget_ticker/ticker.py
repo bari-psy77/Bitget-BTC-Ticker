@@ -32,10 +32,12 @@ class BitgetBTCTicker:
             on_open_settings=self.open_settings,
             on_quit=self.quit_app,
             on_position_change=self.on_position_change,
+            on_toggle_visibility=self.toggle_visibility,
             on_toggle_chart_always_visible=self.toggle_chart_always_visible,
             on_toggle_chart_hover_enabled=self.toggle_chart_hover_enabled,
             on_chart_timeframe_change=self.change_chart_timeframe,
             on_chart_panel_opened=self.request_chart_refresh,
+            on_opacity_change=self.change_overlay_opacity,
             chart_timeframe=str(self.config.get("chart_timeframe", "15m")),
             chart_always_visible=bool(self.config.get("chart_always_visible", False)),
             chart_hover_enabled=bool(self.config.get("chart_hover_enabled", True)),
@@ -136,6 +138,7 @@ class BitgetBTCTicker:
             return
 
         self.running = False
+        self.settings_dialog.destroy()
         self.tray_icon.stop()
         self.root.after(0, self._shutdown_ui)
 
@@ -152,6 +155,11 @@ class BitgetBTCTicker:
 
     def on_position_change(self, custom_position: dict[str, int]) -> None:
         self.config["custom_position"] = dict(custom_position)
+        self._persist_config()
+
+    def change_overlay_opacity(self, opacity: float) -> None:
+        self.config["opacity"] = float(opacity)
+        self.settings_dialog.set_opacity(float(opacity))
         self._persist_config()
 
     def toggle_visibility(self) -> None:
