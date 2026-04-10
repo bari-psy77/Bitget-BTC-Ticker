@@ -117,7 +117,7 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertNotIn("label", geometry[0])
         self.assertNotIn("label_x", geometry[0])
 
-    def test_resolve_chart_price_bounds_expands_to_include_price_lines(self) -> None:
+    def test_resolve_chart_price_bounds_adds_padding_without_forcing_far_lines(self) -> None:
         minimum, maximum = OverlayWindow.resolve_chart_price_bounds(
             candles=[
                 (1710000000000, 72000.0, 73121.0, 71533.0, 72200.0, 1000.0),
@@ -130,8 +130,27 @@ class OverlayWindowPositionTests(unittest.TestCase):
             ],
         )
 
-        self.assertEqual(minimum, 70600.0)
-        self.assertEqual(maximum, 73121.0)
+        self.assertLessEqual(minimum, 71500.0)
+        self.assertGreater(minimum, 70600.0)
+        self.assertGreaterEqual(maximum, 73121.0)
+
+    def test_build_price_line_geometry_uses_full_chart_width_without_label_reserve(self) -> None:
+        geometry = OverlayWindow.build_price_line_geometry(
+            minimum=71000.0,
+            maximum=73000.0,
+            width=298,
+            price_top=12,
+            price_bottom=180,
+            left_pad=56,
+            right_pad=12,
+            price_lines=[
+                {"price": 72100.0, "color": "red"},
+            ],
+        )
+
+        self.assertEqual(len(geometry), 1)
+        self.assertEqual(geometry[0]["x1"], 56.0)
+        self.assertEqual(geometry[0]["x2"], 286.0)
 
     def test_resolve_canvas_dimension_uses_configured_size_when_widget_not_ready(self) -> None:
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(1, 298), 298)

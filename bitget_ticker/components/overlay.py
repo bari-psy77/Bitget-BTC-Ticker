@@ -42,6 +42,7 @@ class OverlayWindow:
     FLAT_COLOR = "#c9d1d9"
     NOTIFICATION_COLOR = "#ffd166"
     NOTIFICATION_TEXT_COLOR = "#0d1117"
+    PRICE_LINE_BOUNDARY_PADDING_RATIO = 0.08
     PRICE_LINE_COLORS = {
         "red": "#ff6b6b",
         "yellow": "#ffd166",
@@ -723,6 +724,8 @@ class OverlayWindow:
             )
             return
 
+        candle_minimum = min(lp for _ts, _o, _h, lp, _c, _v in self._chart_points)
+        candle_maximum = max(hp for _ts, _o, hp, _l, _c, _v in self._chart_points)
         minimum, maximum = self.resolve_chart_price_bounds(
             candles=self._chart_points,
             price_lines=self._price_lines,
@@ -736,7 +739,7 @@ class OverlayWindow:
         self._chart_detail_label.config(
             text=(
                 f"Last {len(closes)} candles  "
-                f"High ${maximum:,.2f}  Low ${minimum:,.2f}  Last ${latest:,.2f}"
+                f"High ${candle_maximum:,.2f}  Low ${candle_minimum:,.2f}  Last ${latest:,.2f}"
             )
         )
 
@@ -788,7 +791,7 @@ class OverlayWindow:
             price_top=price_top,
             price_bottom=price_bottom,
             left_pad=left_pad,
-            right_pad=56,
+            right_pad=right_pad,
             price_lines=self._price_lines,
         )
         for line in price_line_geometry:
@@ -995,13 +998,24 @@ class OverlayWindow:
     ) -> tuple[float, float]:
         lows = [candle[3] for candle in candles]
         highs = [candle[2] for candle in candles]
-        line_prices = [
+        candle_minimum = min(lows)
+        candle_maximum = max(highs)
+        candle_range = candle_maximum - candle_minimum
+        if candle_range <= 0:
+            candle_range = max(abs(candle_minimum) * 0.01, 1.0)
+
+        padding = candle_range * cls.PRICE_LINE_BOUNDARY_PADDING_RATIO
+        visible_minimum = candle_minimum - padding
+        visible_maximum = candle_maximum + padding
+
+        visible_line_prices = [
             float(price_line["price"])
             for price_line in cls._normalize_price_lines(price_lines)
+            if visible_minimum <= float(price_line["price"]) <= visible_maximum
         ]
 
-        minimum = min([*lows, *line_prices]) if line_prices else min(lows)
-        maximum = max([*highs, *line_prices]) if line_prices else max(highs)
+        minimum = min([candle_minimum - padding, *visible_line_prices])
+        maximum = max([candle_maximum + padding, *visible_line_prices])
         return minimum, maximum
 
     def toggle_visibility(self) -> None:
