@@ -723,12 +723,12 @@ class OverlayWindow:
             )
             return
 
-        lows = [lp for _ts, _o, _h, lp, _c, _v in self._chart_points]
-        highs = [hp for _ts, _o, hp, _l, _c, _v in self._chart_points]
+        minimum, maximum = self.resolve_chart_price_bounds(
+            candles=self._chart_points,
+            price_lines=self._price_lines,
+        )
         closes = [cp for _ts, _o, _h, _l, cp, _v in self._chart_points]
         volumes = [v for _ts, _o, _h, _l, _c, v in self._chart_points]
-        minimum = min(lows)
-        maximum = max(highs)
         if minimum == maximum:
             minimum -= 1
             maximum += 1
@@ -800,14 +800,6 @@ class OverlayWindow:
                 fill=line["color"],
                 width=1,
                 dash=(6, 4),
-            )
-            canvas.create_text(
-                line["label_x"],
-                line["y"],
-                text=line["label"],
-                anchor="w",
-                fill=line["color"],
-                font=("Consolas", 7, "bold"),
             )
 
         for i, (_ts, open_p, high_p, low_p, close_p, vol) in enumerate(self._chart_points):
@@ -990,12 +982,27 @@ class OverlayWindow:
                     "x2": float(usable_right),
                     "y": y,
                     "color": color,
-                    "label": cls._format_alert_price(price),
-                    "label_x": float(usable_right + 6),
                 }
             )
         geometry.sort(key=lambda item: float(item["y"]))
         return geometry
+
+    @classmethod
+    def resolve_chart_price_bounds(
+        cls,
+        candles: list[Candle],
+        price_lines: list[dict[str, object]],
+    ) -> tuple[float, float]:
+        lows = [candle[3] for candle in candles]
+        highs = [candle[2] for candle in candles]
+        line_prices = [
+            float(price_line["price"])
+            for price_line in cls._normalize_price_lines(price_lines)
+        ]
+
+        minimum = min([*lows, *line_prices]) if line_prices else min(lows)
+        maximum = max([*highs, *line_prices]) if line_prices else max(highs)
+        return minimum, maximum
 
     def toggle_visibility(self) -> None:
         if self.root.state() == "withdrawn":

@@ -94,7 +94,7 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertLess(geometry[0]["wick_top"], geometry[0]["wick_bottom"])
         self.assertLess(geometry[0]["body_top"], geometry[0]["body_bottom"])
 
-    def test_build_price_line_geometry_returns_visible_lines_with_labels(self) -> None:
+    def test_build_price_line_geometry_returns_visible_lines_without_labels(self) -> None:
         geometry = OverlayWindow.build_price_line_geometry(
             minimum=89000.0,
             maximum=91000.0,
@@ -112,10 +112,26 @@ class OverlayWindowPositionTests(unittest.TestCase):
 
         self.assertEqual(len(geometry), 2)
         self.assertEqual(geometry[0]["color"], OverlayWindow.PRICE_LINE_COLORS["blue"])
-        self.assertEqual(geometry[0]["label"], "$90,500")
         self.assertLess(geometry[0]["y"], geometry[1]["y"])
         self.assertLess(geometry[0]["x1"], geometry[0]["x2"])
-        self.assertGreater(geometry[0]["label_x"], geometry[0]["x2"])
+        self.assertNotIn("label", geometry[0])
+        self.assertNotIn("label_x", geometry[0])
+
+    def test_resolve_chart_price_bounds_expands_to_include_price_lines(self) -> None:
+        minimum, maximum = OverlayWindow.resolve_chart_price_bounds(
+            candles=[
+                (1710000000000, 72000.0, 73121.0, 71533.0, 72200.0, 1000.0),
+                (1710000900000, 72200.0, 72500.0, 71800.0, 72100.0, 2000.0),
+            ],
+            price_lines=[
+                {"price": 70600.0, "color": "green"},
+                {"price": 72100.0, "color": "red"},
+                {"price": 71500.0, "color": "yellow"},
+            ],
+        )
+
+        self.assertEqual(minimum, 70600.0)
+        self.assertEqual(maximum, 73121.0)
 
     def test_resolve_canvas_dimension_uses_configured_size_when_widget_not_ready(self) -> None:
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(1, 298), 298)
