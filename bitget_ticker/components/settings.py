@@ -12,6 +12,7 @@ class SettingsDialog:
     """Tabbed settings dialog for alarms, interval, and opacity."""
 
     ALARM_SLOT_COUNT = 6
+    PRICE_LINE_SLOT_COUNT = 6
     MIN_INTERVAL_SECONDS = 10
     MAX_INTERVAL_SECONDS = 1800
     INTERVAL_STEP_SECONDS = 10
@@ -21,6 +22,7 @@ class SettingsDialog:
     MIN_WINDOW_HEIGHT = 620
     WINDOW_TITLE = "Settings - Bitget BTC Ticker"
     ALERTS_TAB_TITLE = "Price Alerts"
+    PRICE_LINES_TAB_TITLE = "Price Lines"
     INTERVAL_TAB_TITLE = "Refresh Interval"
     DISPLAY_TAB_TITLE = "Display"
     SAVE_BUTTON_LABEL = "Save"
@@ -36,6 +38,14 @@ class SettingsDialog:
     CHART_TIMEFRAME_1H_LABEL = "1 hour"
     CHART_TIMEFRAME_4H_LABEL = "4 hour"
     CHART_GUIDE_TEXT = "Hover over the overlay for 2 seconds to open the mini chart."
+    PRICE_LINE_COLOR_LABELS = {
+        "red": "Red",
+        "yellow": "Yellow",
+        "blue": "Blue",
+        "green": "Green",
+        "orange": "Orange",
+        "purple": "Purple",
+    }
 
     TAB_ACTIVE_BG = "#ffffff"
     TAB_INACTIVE_BG = "#e8e8e8"
@@ -58,6 +68,8 @@ class SettingsDialog:
         self.alarm_vars: list[tk.StringVar] = []
         self.alarm_enabled_vars: list[tk.BooleanVar] = []
         self.alarm_mode_vars: list[tk.StringVar] = []
+        self.price_line_vars: list[tk.StringVar] = []
+        self.price_line_color_vars: list[tk.StringVar] = []
         self.market_type_var: tk.StringVar | None = None
         self.chart_timeframe_var: tk.StringVar | None = None
         self.interval_var: tk.IntVar | None = None
@@ -94,7 +106,12 @@ class SettingsDialog:
         tab_bar = tk.Frame(self.window, bg=self.TAB_INACTIVE_BG)
         tab_bar.pack(fill="x", padx=12, pady=(12, 0))
 
-        titles = [self.ALERTS_TAB_TITLE, self.INTERVAL_TAB_TITLE, self.DISPLAY_TAB_TITLE]
+        titles = [
+            self.ALERTS_TAB_TITLE,
+            self.PRICE_LINES_TAB_TITLE,
+            self.INTERVAL_TAB_TITLE,
+            self.DISPLAY_TAB_TITLE,
+        ]
         self._tab_buttons = []
         for i, title in enumerate(titles):
             btn = tk.Label(
@@ -145,16 +162,18 @@ class SettingsDialog:
         self._build_all_tabs(config)
 
     def _build_all_tabs(self, config: dict[str, Any]) -> None:
-        """Build the three tab frames inside _content_area."""
+        """Build the tab frames inside _content_area."""
         if self._content_area is None:
             return
 
         alarm_frame = tk.Frame(self._content_area)
+        price_lines_frame = tk.Frame(self._content_area)
         interval_frame = tk.Frame(self._content_area)
         display_frame = tk.Frame(self._content_area)
-        self._tab_frames = [alarm_frame, interval_frame, display_frame]
+        self._tab_frames = [alarm_frame, price_lines_frame, interval_frame, display_frame]
 
         self._build_alarm_tab(alarm_frame, config)
+        self._build_price_lines_tab(price_lines_frame, config)
         self._build_interval_tab(interval_frame, config)
         self._build_display_tab(display_frame, config)
 
@@ -225,6 +244,52 @@ class SettingsDialog:
         tk.Label(
             container,
             text="Each alert can use Popup or Notification independently.",
+            fg="#666666",
+            justify="left",
+            wraplength=420,
+        ).pack(anchor="w", pady=(10, 0))
+
+    def _build_price_lines_tab(self, parent: tk.Frame, config: dict[str, Any]) -> None:
+        price_lines = list(config.get("price_lines", []))[: self.PRICE_LINE_SLOT_COUNT]
+        while len(price_lines) < self.PRICE_LINE_SLOT_COUNT:
+            price_lines.append({"price": "", "color": "red"})
+
+        container = tk.Frame(parent)
+        container.pack(fill="x", padx=18, pady=18)
+
+        self.price_line_vars = []
+        self.price_line_color_vars = []
+        color_labels = tuple(self.PRICE_LINE_COLOR_LABELS.values())
+        for index, price_line in enumerate(price_lines, start=1):
+            price_value = ""
+            color_value = "red"
+            if isinstance(price_line, dict):
+                price_value = self._format_alarm_value(price_line.get("price", ""))
+                color_value = self._normalize_price_line_color(price_line.get("color", "red"))
+
+            var = tk.StringVar(value=price_value)
+            color_var = tk.StringVar(value=self._color_key_to_label(color_value))
+            self.price_line_vars.append(var)
+            self.price_line_color_vars.append(color_var)
+
+            row = tk.Frame(container)
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=f"Line {index} (USDT)", anchor="w", width=14).pack(side="left")
+            tk.Entry(row, textvariable=var, width=24).pack(
+                side="left", padx=(12, 0), fill="x", expand=True,
+            )
+            ttk.Combobox(
+                row,
+                textvariable=color_var,
+                values=color_labels,
+                width=12,
+                state="readonly",
+            ).pack(side="left", padx=(12, 0))
+
+        ttk.Separator(container, orient="horizontal").pack(fill="x", pady=(18, 18))
+        tk.Label(
+            container,
+            text="Configured lines appear on the mini chart with a horizontal line and price label.",
             fg="#666666",
             justify="left",
             wraplength=420,
@@ -365,6 +430,7 @@ class SettingsDialog:
     def _save(self) -> None:
         try:
             alarms = self._parse_alarm_values()
+            price_lines = self._parse_price_line_values()
         except ValueError as exc:
             messagebox.showerror("Input Error", str(exc), parent=self.window)
             return
@@ -385,6 +451,7 @@ class SettingsDialog:
             "chart_always_visible": bool(current_config.get("chart_always_visible", False)),
             "chart_hover_enabled": bool(current_config.get("chart_hover_enabled", True)),
             "alarms": alarms,
+            "price_lines": price_lines,
             "opacity": round(int(self.opacity_var.get()) / 100, 2),
             "custom_position": (
                 dict(current_config["custom_position"])
@@ -425,6 +492,23 @@ class SettingsDialog:
             except ValueError as exc:
                 raise ValueError("Alert values must be numeric.") from exc
         return alarms
+
+    def _parse_price_line_values(self) -> list[dict[str, object]]:
+        price_lines: list[dict[str, object]] = []
+        for var, color_var in zip(self.price_line_vars, self.price_line_color_vars, strict=True):
+            value = var.get().strip()
+            if not value:
+                continue
+            try:
+                price_lines.append(
+                    {
+                        "price": float(value),
+                        "color": self._color_label_to_key(color_var.get()),
+                    }
+                )
+            except ValueError as exc:
+                raise ValueError("Price line values must be numeric.") from exc
+        return price_lines
 
     def _handle_close(self, restore_opacity: bool = True) -> None:
         if restore_opacity:
@@ -478,3 +562,18 @@ class SettingsDialog:
 
     def _label_to_mode(self, label: str) -> str:
         return "notification" if label == self.NOTIFICATION_MODE_LABEL else "popup"
+
+    def _color_key_to_label(self, color_key: str) -> str:
+        return self.PRICE_LINE_COLOR_LABELS[self._normalize_price_line_color(color_key)]
+
+    def _color_label_to_key(self, color_label: str) -> str:
+        for color_key, label in self.PRICE_LINE_COLOR_LABELS.items():
+            if label == color_label:
+                return color_key
+        return "red"
+
+    def _normalize_price_line_color(self, color_key: object) -> str:
+        normalized = str(color_key).lower()
+        if normalized in self.PRICE_LINE_COLOR_LABELS:
+            return normalized
+        return "red"

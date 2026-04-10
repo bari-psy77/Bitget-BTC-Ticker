@@ -94,6 +94,29 @@ class OverlayWindowPositionTests(unittest.TestCase):
         self.assertLess(geometry[0]["wick_top"], geometry[0]["wick_bottom"])
         self.assertLess(geometry[0]["body_top"], geometry[0]["body_bottom"])
 
+    def test_build_price_line_geometry_returns_visible_lines_with_labels(self) -> None:
+        geometry = OverlayWindow.build_price_line_geometry(
+            minimum=89000.0,
+            maximum=91000.0,
+            width=298,
+            price_top=12,
+            price_bottom=180,
+            left_pad=56,
+            right_pad=56,
+            price_lines=[
+                {"price": 90000.0, "color": "red"},
+                {"price": 90500.0, "color": "blue"},
+                {"price": 92000.0, "color": "yellow"},
+            ],
+        )
+
+        self.assertEqual(len(geometry), 2)
+        self.assertEqual(geometry[0]["color"], OverlayWindow.PRICE_LINE_COLORS["blue"])
+        self.assertEqual(geometry[0]["label"], "$90,500")
+        self.assertLess(geometry[0]["y"], geometry[1]["y"])
+        self.assertLess(geometry[0]["x1"], geometry[0]["x2"])
+        self.assertGreater(geometry[0]["label_x"], geometry[0]["x2"])
+
     def test_resolve_canvas_dimension_uses_configured_size_when_widget_not_ready(self) -> None:
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(1, 298), 298)
         self.assertEqual(OverlayWindow.resolve_canvas_dimension(0, 120), 120)

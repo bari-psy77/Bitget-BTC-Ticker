@@ -53,6 +53,7 @@ class BitgetBTCTicker:
 
         self.alarm_engine = AlarmEngine(on_alarm=self.on_alarm)
         self.overlay.attach_alarm_engine(self.alarm_engine, self._current_alarms)
+        self.overlay.set_price_lines(self._copy_price_line_items(self.config.get("price_lines")))
         self.overlay.update_chart_data(
             candles=[],
             timeframe=str(self.config.get("chart_timeframe", "15m")),
@@ -117,12 +118,14 @@ class BitgetBTCTicker:
             "chart_always_visible": bool(config.get("chart_always_visible", False)),
             "chart_hover_enabled": bool(config.get("chart_hover_enabled", True)),
             "alarms": self._copy_alarm_items(config.get("alarms")),
+            "price_lines": self._copy_price_line_items(config.get("price_lines")),
             "opacity": float(config["opacity"]),
             "custom_position": self._copy_custom_position(config.get("custom_position")),
         }
         self.price_fetcher.set_market_type(str(self.config["market_type"]))
         self.overlay.set_opacity(float(self.config["opacity"]))
         self.overlay.set_position(self._copy_custom_position(self.config.get("custom_position")))
+        self.overlay.set_price_lines(self._copy_price_line_items(self.config.get("price_lines")))
         self.overlay.set_chart_behavior(
             chart_always_visible=bool(self.config.get("chart_always_visible", False)),
             chart_hover_enabled=bool(self.config.get("chart_hover_enabled", True)),
@@ -264,6 +267,7 @@ class BitgetBTCTicker:
             "chart_always_visible": bool(self.config.get("chart_always_visible", False)),
             "chart_hover_enabled": bool(self.config.get("chart_hover_enabled", True)),
             "alarms": self._copy_alarm_items(self.config.get("alarms")),
+            "price_lines": self._copy_price_line_items(self.config.get("price_lines")),
             "opacity": float(self.config["opacity"]),
             "custom_position": self._copy_custom_position(self.config.get("custom_position")),
         }
@@ -359,6 +363,32 @@ class BitgetBTCTicker:
                 }
             )
         return alarms
+
+    @staticmethod
+    def _copy_price_line_items(
+        value: object,
+    ) -> list[dict[str, object]]:
+        if not isinstance(value, list):
+            return []
+
+        price_lines: list[dict[str, object]] = []
+        for price_line in value:
+            if not isinstance(price_line, dict):
+                continue
+            try:
+                price = float(price_line["price"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            color = str(price_line.get("color", "")).lower()
+            if color not in OverlayWindow.PRICE_LINE_COLORS:
+                continue
+            price_lines.append(
+                {
+                    "price": price,
+                    "color": color,
+                }
+            )
+        return price_lines
 
 
 def main() -> None:

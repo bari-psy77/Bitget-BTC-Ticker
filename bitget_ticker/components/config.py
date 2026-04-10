@@ -15,6 +15,7 @@ class ConfigManager:
         "chart_always_visible": False,
         "chart_hover_enabled": True,
         "alarms": [],
+        "price_lines": [],
         "opacity": 0.85,
         "custom_position": None,
     }
@@ -23,6 +24,7 @@ class ConfigManager:
     MARKET_TYPE_OPTIONS = {"spot", "futures"}
     CHART_TIMEFRAME_OPTIONS = {"5m", "15m", "1h", "4h"}
     ALARM_MODE_OPTIONS = {"popup", "notification"}
+    PRICE_LINE_COLOR_OPTIONS = {"red", "yellow", "blue", "green", "orange", "purple"}
 
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or (Path.home() / ".bitget_ticker_config.json")
@@ -73,6 +75,7 @@ class ConfigManager:
         chart_always_visible = data.get("chart_always_visible", config["chart_always_visible"])
         chart_hover_enabled = data.get("chart_hover_enabled", config["chart_hover_enabled"])
         alarms = data.get("alarms", config["alarms"])
+        price_lines = data.get("price_lines", config["price_lines"])
         legacy_alert_mode = data.get("alert_mode", "popup")
         custom_position = data.get("custom_position")
 
@@ -106,6 +109,14 @@ class ConfigManager:
                     parsed_alarms.append(parsed_alarm)
         config["alarms"] = parsed_alarms
 
+        parsed_price_lines: list[dict[str, Any]] = []
+        if isinstance(price_lines, list):
+            for price_line in price_lines:
+                parsed_price_line = self._normalize_price_line_entry(price_line)
+                if parsed_price_line is not None:
+                    parsed_price_lines.append(parsed_price_line)
+        config["price_lines"] = parsed_price_lines
+
         config["custom_position"] = self._normalize_custom_position(custom_position)
 
         return config
@@ -135,6 +146,27 @@ class ConfigManager:
             "price": price,
             "enabled": enabled,
             "mode": mode,
+        }
+
+    def _normalize_price_line_entry(
+        self,
+        price_line: Any,
+    ) -> dict[str, Any] | None:
+        if not isinstance(price_line, dict):
+            return None
+
+        try:
+            price = float(price_line.get("price"))
+        except (TypeError, ValueError):
+            return None
+
+        color = str(price_line.get("color", "")).lower()
+        if color not in self.PRICE_LINE_COLOR_OPTIONS:
+            return None
+
+        return {
+            "price": price,
+            "color": color,
         }
 
     def _normalize_custom_position(

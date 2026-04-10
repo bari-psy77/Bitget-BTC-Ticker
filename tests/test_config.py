@@ -22,6 +22,7 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertFalse(config["chart_always_visible"])
             self.assertTrue(config["chart_hover_enabled"])
             self.assertEqual(config["alarms"], [])
+            self.assertEqual(config["price_lines"], [])
             self.assertEqual(config["opacity"], 0.85)
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
@@ -44,6 +45,10 @@ class ConfigManagerTests(unittest.TestCase):
                 "chart_hover_enabled": False,
                 "opacity": 0.65,
                 "custom_position": {"x": 120, "y": 80},
+                "price_lines": [
+                    {"price": 95000.0, "color": "red"},
+                    {"price": 100000.0, "color": "blue"},
+                ],
                 "alarm_states": {"95000.0": "above"},
             }
 
@@ -65,6 +70,13 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertFalse(saved["chart_hover_enabled"])
             self.assertEqual(saved["opacity"], 0.65)
             self.assertEqual(saved["custom_position"], {"x": 120, "y": 80})
+            self.assertEqual(
+                saved["price_lines"],
+                [
+                    {"price": 95000.0, "color": "red"},
+                    {"price": 100000.0, "color": "blue"},
+                ],
+            )
             self.assertNotIn("position", saved)
             self.assertNotIn("alert_mode", saved)
 
@@ -84,6 +96,7 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(config["chart_timeframe"], "15m")
             self.assertFalse(config["chart_always_visible"])
             self.assertTrue(config["chart_hover_enabled"])
+            self.assertEqual(config["price_lines"], [])
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
             self.assertNotIn("alert_mode", config)
@@ -110,6 +123,7 @@ class ConfigManagerTests(unittest.TestCase):
                 config["alarms"],
                 [],
             )
+            self.assertEqual(config["price_lines"], [])
             self.assertEqual(config["chart_timeframe"], "15m")
             self.assertEqual(config["custom_position"], {"x": 40, "y": 75})
             self.assertNotIn("position", config)
@@ -135,6 +149,7 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(config["chart_timeframe"], "15m")
             self.assertFalse(config["chart_always_visible"])
             self.assertTrue(config["chart_hover_enabled"])
+            self.assertEqual(config["price_lines"], [])
             self.assertIsNone(config["custom_position"])
             self.assertNotIn("position", config)
 
@@ -165,6 +180,35 @@ class ConfigManagerTests(unittest.TestCase):
             self.assertEqual(config["market_type"], "futures")
             self.assertEqual(config["chart_timeframe"], "15m")
             self.assertNotIn("alert_mode", config)
+
+    def test_load_normalizes_price_lines_and_ignores_invalid_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "price_lines": [
+                            {"price": "95000", "color": "red"},
+                            {"price": 100500.25, "color": "blue"},
+                            {"price": "bad", "color": "yellow"},
+                            {"price": 92000, "color": "invalid"},
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            manager = ConfigManager(config_path=config_path)
+            config = manager.load()
+
+            self.assertEqual(
+                config["price_lines"],
+                [
+                    {"price": 95000.0, "color": "red"},
+                    {"price": 100500.25, "color": "blue"},
+                ],
+            )
 
     def test_load_accepts_extended_chart_timeframes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

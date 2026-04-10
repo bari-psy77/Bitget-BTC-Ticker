@@ -42,6 +42,14 @@ class OverlayWindow:
     FLAT_COLOR = "#c9d1d9"
     NOTIFICATION_COLOR = "#ffd166"
     NOTIFICATION_TEXT_COLOR = "#0d1117"
+    PRICE_LINE_COLORS = {
+        "red": "#ff6b6b",
+        "yellow": "#ffd166",
+        "blue": "#58a6ff",
+        "green": "#00d4aa",
+        "orange": "#f7931a",
+        "purple": "#bc8cff",
+    }
 
     def __init__(
         self,
@@ -86,6 +94,7 @@ class OverlayWindow:
         self._notification_flash_job: str | None = None
         self._notification_clear_job: str | None = None
         self._chart_points: list[Candle] = []
+        self._price_lines: list[dict[str, object]] = []
         self._chart_timeframe = self._normalize_chart_timeframe(chart_timeframe)
         self._chart_market_type = "futures"
         self._chart_always_visible = bool(chart_always_visible)
@@ -156,6 +165,10 @@ class OverlayWindow:
     def set_chart_timeframe(self, timeframe: str) -> None:
         self._chart_timeframe = self._normalize_chart_timeframe(timeframe)
         self._chart_timeframe_var.set(self._chart_timeframe)
+        self._render_chart()
+
+    def set_price_lines(self, price_lines: list[dict[str, object]]) -> None:
+        self._price_lines = self._normalize_price_lines(price_lines)
         self._render_chart()
 
     def is_chart_visible(self) -> bool:
@@ -768,6 +781,35 @@ class OverlayWindow:
 
         max_vol = max(volumes) if volumes and max(volumes) > 0 else 1.0
 
+        price_line_geometry = self.build_price_line_geometry(
+            minimum=minimum,
+            maximum=maximum,
+            width=width,
+            price_top=price_top,
+            price_bottom=price_bottom,
+            left_pad=left_pad,
+            right_pad=56,
+            price_lines=self._price_lines,
+        )
+        for line in price_line_geometry:
+            canvas.create_line(
+                line["x1"],
+                line["y"],
+                line["x2"],
+                line["y"],
+                fill=line["color"],
+                width=1,
+                dash=(6, 4),
+            )
+            canvas.create_text(
+                line["label_x"],
+                line["y"],
+                text=line["label"],
+                anchor="w",
+                fill=line["color"],
+                font=("Consolas", 7, "bold"),
+            )
+
         for i, (_ts, open_p, high_p, low_p, close_p, vol) in enumerate(self._chart_points):
             cx = left_pad + (slot_width * i) + (slot_width / 2)
             color = self.UP_COLOR if close_p >= open_p else self.DOWN_COLOR
@@ -910,6 +952,51 @@ class OverlayWindow:
             )
         return geometry
 
+    @classmethod
+    def build_price_line_geometry(
+        cls,
+        minimum: float,
+        maximum: float,
+        width: int,
+        price_top: int,
+        price_bottom: int,
+        left_pad: int,
+        right_pad: int,
+        price_lines: list[dict[str, object]],
+    ) -> list[dict[str, float | str]]:
+        if not price_lines:
+            return []
+
+        if minimum == maximum:
+            minimum -= 1
+            maximum += 1
+
+        usable_right = max(left_pad + 1, width - right_pad)
+        price_range = maximum - minimum
+        price_height = max(1, price_bottom - price_top)
+        geometry: list[dict[str, float | str]] = []
+        for price_line in cls._normalize_price_lines(price_lines):
+            price = float(price_line["price"])
+            if price < minimum or price > maximum:
+                continue
+
+            ratio = (price - minimum) / price_range
+            y = price_bottom - (ratio * price_height)
+            color_key = str(price_line["color"])
+            color = cls.PRICE_LINE_COLORS[color_key]
+            geometry.append(
+                {
+                    "x1": float(left_pad),
+                    "x2": float(usable_right),
+                    "y": y,
+                    "color": color,
+                    "label": cls._format_alert_price(price),
+                    "label_x": float(usable_right + 6),
+                }
+            )
+        geometry.sort(key=lambda item: float(item["y"]))
+        return geometry
+
     def toggle_visibility(self) -> None:
         if self.root.state() == "withdrawn":
             self.root.deiconify()
@@ -924,6 +1011,22 @@ class OverlayWindow:
         if alarm_price.is_integer():
             return f"${alarm_price:,.0f}"
         return f"${alarm_price:,.2f}"
+
+    @classmethod
+    def _normalize_price_lines(cls, price_lines: list[dict[str, object]]) -> list[dict[str, object]]:
+        normalized: list[dict[str, object]] = []
+        for price_line in price_lines:
+            if not isinstance(price_line, dict):
+                continue
+            try:
+                price = float(price_line["price"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            color = str(price_line.get("color", "red")).lower()
+            if color not in cls.PRICE_LINE_COLORS:
+                continue
+            normalized.append({"price": price, "color": color})
+        return normalized
 
     @staticmethod
     def _normalize_chart_timeframe(timeframe: str) -> str:
